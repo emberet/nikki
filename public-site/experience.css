@@ -1291,3 +1291,10 @@ html[data-motion="off"] .watch-shortcuts a {
     font-size: 0.8rem;
   }
 }
+
+.brand-mark.brand-logo {
+  display: block;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #7026e7;
+}

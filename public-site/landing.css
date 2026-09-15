@@ -1,0 +1,424 @@
+.nikki-landing {
+  --ink: #ececf1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 72px;
+  align-items: center;
+  padding: 48px 0 44px;
+  isolation: isolate;
+}
+.landing-copy {
+  min-width: 0;
+}
+.landing-kicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--pink);
+  font:
+    0.875rem Space,
+    monospace;
+  letter-spacing: 0.09em;
+  margin: 0 0 22px;
+}
+.landing-kicker > span {
+  font:
+    2rem/1 Arial,
+    sans-serif;
+}
+.landing-copy h1 {
+  font:
+    clamp(3.3rem, 6.8vw, 6.25rem)/0.98 Archivo,
+    Arial,
+    sans-serif;
+  letter-spacing: -0.065em;
+  margin: 0 0 28px;
+}
+.landing-copy h1 em {
+  font-style: normal;
+  color: var(--pink);
+  display: inline-block;
+  position: relative;
+}
+.landing-copy h1 em::after {
+  content: "";
+  height: 7px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  background: var(--purple);
+  transform: rotate(-2deg);
+  z-index: -1;
+}
+.landing-intro {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  max-width: 470px;
+  color: #c9c8d0;
+  margin: 0 0 30px;
+}
+.landing-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.landing-primary {
+  background: var(--pink);
+  color: #0a0a0c;
+  border-color: var(--pink);
+  box-shadow: 5px 5px var(--purple);
+  min-height: 54px;
+  padding: 14px 21px;
+  font-size: 1rem;
+}
+.landing-primary:hover {
+  background: var(--lime);
+  border-color: var(--lime);
+  box-shadow: 7px 7px var(--purple);
+  transform: translate(-2px, -2px);
+}
+.landing-archive-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.9375rem;
+  padding: 12px 0;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  min-height: 48px;
+}
+.landing-archive-link span {
+  color: var(--pink);
+  font-size: 1.5rem;
+}
+.landing-invite {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 34px;
+  font:
+    0.75rem/1.6 Space,
+    monospace;
+  color: var(--muted);
+}
+.landing-invite a {
+  color: var(--lime);
+  font:
+    0.875rem Arial,
+    sans-serif;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  padding: 8px 0;
+}
+.landing-invite .status-dot {
+  width: 7px;
+  height: 7px;
+}
+.nikki-object {
+  position: relative;
+  min-width: 0;
+  padding: 12px 12px 0;
+  max-width: 440px;
+  justify-self: center;
+  width: 100%;
+}
+.nikki-poster {
+  padding: 0;
+  width: 100%;
+  display: block;
+  background: #7026e7;
+  border: 3px solid var(--ink);
+  box-shadow: 10px 10px #9945ff;
+  transform: rotate(3deg);
+  color: var(--ink);
+  text-align: left;
+  transition:
+    transform 0.22s,
+    box-shadow 0.22s;
+  position: relative;
+  touch-action: manipulation;
+}
+.nikki-poster:hover,
+.nikki-poster:focus-visible {
+  transform: rotate(0deg) translateY(-3px);
+  box-shadow: 12px 13px var(--pink);
+}
+.nikki-poster img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+.nikki-poster-top,
+.nikki-poster-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #0a0a0c;
+  padding: 12px 16px;
+  font:
+    0.8125rem Space,
+    monospace;
+  letter-spacing: 0.05em;
+}
+.nikki-poster-top {
+  border-bottom: 2px solid var(--ink);
+}
+.nikki-poster-top > span:last-child {
+  color: var(--pink);
+  font-size: 1rem;
+}
+.nikki-poster-bottom {
+  border-top: 2px solid var(--ink);
+}
+.nikki-poster-bottom > span:last-child {
+  color: var(--lime);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.nikki-sticker {
+  position: absolute;
+  right: -14px;
+  top: -14px;
+  transform: rotate(12deg);
+  z-index: 2;
+  background: var(--lime);
+  color: #0a0a0c;
+  border: 2px solid #0a0a0c;
+  box-shadow: 3px 3px var(--ink);
+  padding: 14px 16px;
+  font:
+    0.875rem/1.12 Archivo,
+    sans-serif;
+  pointer-events: none;
+}
+.nikki-message {
+  position: relative;
+  margin: 30px 0 0;
+  font:
+    0.875rem/1.6 Space,
+    monospace;
+  text-align: center;
+  min-height: 3.2em;
+  color: var(--pink);
+}
+.nikki-poke-hint {
+  display: block;
+  text-align: center;
+  font:
+    0.75rem Space,
+    monospace;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  margin: 3px 0 0;
+}
+.landing-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 17px 22px;
+  margin: 18px 0 34px;
+  border: 2px solid var(--subtle);
+  background: var(--panel);
+  font:
+    0.8125rem Space,
+    monospace;
+  letter-spacing: 0.08em;
+}
+.strip-heart {
+  color: var(--pink);
+  font-size: 1.75rem;
+  line-height: 1;
+}
+.nikki-poster[data-mood="1"] .nikki-poster-top > span:last-child {
+  color: var(--lime);
+}
+.nikki-poster[data-mood="2"] .nikki-poster-top > span:last-child {
+  color: var(--sky);
+}
+.nikki-boop {
+  animation: nikki-boop 0.4s ease-out;
+}
+@keyframes nikki-boop {
+  0%,
+  100% {
+    transform: rotate(3deg);
+  }
+  35% {
+    transform: rotate(-4deg) translateY(-9px);
+  }
+  65% {
+    transform: rotate(5deg) translateY(-3px);
+  }
+}
+@media (min-width: 761px) {
+  .nikki-landing + .landing-strip ~ .release-note {
+    padding: 18px 22px;
+  }
+  .nikki-landing ~ #archive .empty-state {
+    min-height: 255px;
+  }
+}
+@media (max-width: 1050px) {
+  .nikki-landing {
+    gap: 42px;
+    padding-top: 34px;
+  }
+  .landing-copy h1 {
+    font-size: clamp(3rem, 6.3vw, 5.5rem);
+  }
+  .landing-actions {
+    gap: 18px;
+  }
+  .nikki-sticker {
+    right: -4px;
+    font-size: 0.75rem;
+    padding: 12px;
+  }
+  .landing-invite {
+    gap: 10px;
+    margin-top: 22px;
+  }
+}
+@media (max-width: 760px) {
+  .nikki-landing {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    padding: 16px 0 22px;
+  }
+  .landing-kicker {
+    font-size: 0.75rem;
+    margin-bottom: 16px;
+  }
+  .landing-copy h1 {
+    font-size: clamp(3.45rem, 14vw, 5.7rem);
+    letter-spacing: -0.06em;
+    margin-bottom: 25px;
+  }
+  .landing-intro {
+    font-size: 1rem;
+    line-height: 1.65;
+    margin-bottom: 24px;
+    max-width: 470px;
+  }
+  .landing-intro br {
+    display: none;
+  }
+  .landing-actions {
+    gap: 18px;
+    justify-content: flex-start;
+  }
+  .landing-primary {
+    font-size: 0.9375rem;
+    padding: 12px 17px;
+    min-height: 50px;
+  }
+  .landing-archive-link {
+    font-size: 0.875rem;
+    gap: 8px;
+  }
+  .landing-invite {
+    margin-top: 22px;
+    gap: 10px;
+    font-size: 0.75rem;
+  }
+  .nikki-object {
+    max-width: 340px;
+    padding: 10px 16px 0;
+  }
+  .nikki-poster {
+    box-shadow: 7px 7px var(--purple);
+    transform: rotate(2deg);
+  }
+  .nikki-sticker {
+    right: 0;
+    top: 0;
+    padding: 12px;
+    font-size: 0.8125rem;
+  }
+  .nikki-poster-top,
+  .nikki-poster-bottom {
+    font-size: 0.75rem;
+    padding: 10px 13px;
+  }
+  .nikki-message {
+    margin-top: 23px;
+    min-height: 1.6em;
+  }
+  .nikki-poke-hint {
+    margin-top: 8px;
+    font-size: 0.75rem;
+  }
+  .landing-strip {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px 15px;
+    font-size: 0.75rem;
+    padding: 16px 12px;
+    margin: 14px 0 26px;
+    letter-spacing: 0.03em;
+  }
+  .landing-strip > span:last-child {
+    flex-basis: 100%;
+    text-align: center;
+  }
+  .landing-strip > .strip-heart:nth-of-type(4) {
+    display: none;
+  }
+  .nikki-landing ~ #archive .empty-state {
+    min-height: 250px;
+  }
+  .nikki-landing ~ #archive .empty-symbol {
+    font-size: 2rem;
+  }
+  .nikki-landing ~ #archive h2 {
+    font-size: 1.5rem;
+  }
+}
+@media (max-width: 360px) {
+  .landing-copy h1 {
+    font-size: 3.2rem;
+  }
+  .landing-actions {
+    gap: 8px;
+  }
+  .landing-primary {
+    font-size: 0.875rem;
+    padding: 12px;
+  }
+  .landing-archive-link {
+    font-size: 0.8125rem;
+  }
+  .landing-invite {
+    font-size: 0.7rem;
+  }
+  .nikki-object {
+    max-width: 290px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nikki-poster,
+  .nikki-boop {
+    animation: none;
+    transition: none;
+  }
+  .nikki-poster:hover,
+  .nikki-poster:focus-visible {
+    transform: rotate(3deg);
+  }
+}
+html[data-motion="off"] .nikki-poster,
+html[data-motion="off"] .nikki-boop {
+  animation: none;
+  transition: none;
+}
+html[data-motion="off"] .nikki-poster:hover,
+html[data-motion="off"] .nikki-poster:focus-visible {
+  transform: rotate(3deg);
+}
