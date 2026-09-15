@@ -1,4 +1,5 @@
 import { releaseApi, transactionsPaused } from "./release";
+import { storagePricing } from "./storage-pricing";
 import { mediaApi, cleanupMedia } from "./media";
 import { cachedHoldings, edgeCache, publicCacheKey, limitRead } from "./cache";
 import { PublicKey } from "@solana/web3.js";
@@ -58,6 +59,7 @@ async function api(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url),
     route =
       url.pathname.replace(/^\/api\/creators/, "").replace(/\/$/, "") || "/";
+  if (route === "/storage-pricing") return storagePricing(req);
   if (route === "/config")
     return json({
       accountsEnabled: !!env.CREATORS_DB,

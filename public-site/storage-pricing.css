@@ -1,0 +1,401 @@
+.storage-pricing {
+  --storage-ink: #18141f;
+  --pink: #ff90cb;
+  --lime: #d6ff65;
+  --purple: #9945ff;
+  --mono: Space, monospace;
+  margin: 36px 0;
+  padding: 26px;
+  border: 3px solid var(--line);
+  background: var(--panel);
+  box-shadow: 7px 7px var(--purple);
+}
+.storage-pricing-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 25px;
+}
+.storage-pricing-heading .eyebrow {
+  color: var(--pink);
+}
+.storage-pricing-heading h2 {
+  margin: 9px 0;
+  font-size: clamp(1.5rem, 3vw, 2.15rem);
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+.storage-pricing-heading p {
+  margin: 0;
+  color: var(--muted);
+}
+.storage-sticker {
+  flex: none;
+  padding: 12px 18px;
+  border: 2px solid var(--storage-ink);
+  background: var(--lime);
+  color: var(--storage-ink);
+  box-shadow: 4px 4px var(--purple);
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  transform: rotate(5deg);
+}
+.storage-sticker strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 1.2rem;
+}
+.storage-estimator {
+  display: grid;
+  grid-template-columns: 1fr 0.85fr;
+  gap: 24px;
+  align-items: stretch;
+}
+.storage-size-control {
+  min-width: 0;
+}
+.storage-size-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.storage-size-heading label {
+  margin: 0;
+  font-weight: 700;
+}
+.storage-size-heading output {
+  font-family: var(--mono);
+  color: var(--pink);
+}
+.storage-presets {
+  display: flex;
+  gap: 8px;
+}
+.storage-presets button {
+  flex: 1;
+  min-height: 44px;
+  border: 2px solid var(--line);
+  padding: 9px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 150ms,
+    box-shadow 150ms;
+}
+.storage-presets button[aria-pressed="true"] {
+  background: var(--pink);
+  color: var(--storage-ink);
+  border-color: var(--pink);
+  box-shadow: 3px 3px var(--purple);
+}
+.storage-presets button:hover {
+  transform: translateY(-2px);
+}
+.storage-presets button:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+.storage-presets button:focus-visible,
+.storage-rate-row button:focus-visible,
+.storage-pricing-detail summary:focus-visible {
+  outline: 3px solid var(--lime);
+  outline-offset: 4px;
+}
+.storage-pricing input[type="range"] {
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  padding: 0;
+  margin: 13px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  accent-color: var(--lime);
+}
+.storage-pricing input[type="range"]::-webkit-slider-runnable-track {
+  height: 10px;
+  border: 2px solid var(--line);
+  background: var(--purple);
+}
+.storage-pricing input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 24px;
+  height: 28px;
+  margin-top: -11px;
+  border: 2px solid var(--storage-ink);
+  border-radius: 0;
+  background: var(--lime);
+  box-shadow: 3px 3px var(--storage-ink);
+}
+.storage-pricing input[type="range"]::-moz-range-track {
+  height: 7px;
+  border: 2px solid var(--line);
+  background: var(--purple);
+}
+.storage-pricing input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 24px;
+  border: 2px solid var(--storage-ink);
+  border-radius: 0;
+  background: var(--lime);
+}
+.storage-pricing input[type="range"]:focus-visible {
+  outline: 3px solid var(--pink);
+  outline-offset: 3px;
+}
+.storage-range-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.storage-range-labels span:last-child {
+  text-align: right;
+}
+.storage-pricing .storage-small {
+  margin: 12px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.storage-price-card {
+  min-width: 0;
+  padding: 20px;
+  border: 2px solid var(--storage-ink);
+  background: var(--pink);
+  color: var(--storage-ink);
+  box-shadow: 4px 4px var(--storage-ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.storage-price-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.storage-price {
+  display: block;
+  margin: 12px 0 14px;
+  font-size: clamp(1.65rem, 3.5vw, 2.7rem);
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.storage-price small {
+  font-size: 0.85rem;
+  letter-spacing: 0;
+}
+.storage-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+.storage-rate-row p {
+  margin: 0;
+  max-width: 30ch;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.storage-rate-row button {
+  flex: none;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 2px solid var(--storage-ink);
+  background: var(--storage-ink);
+  color: var(--pink);
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.storage-rate-row button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.storage-rate-row button:focus-visible {
+  outline-color: var(--storage-ink);
+}
+.storage-fee-route {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 0.8fr;
+  gap: 8px;
+  margin-top: 24px;
+}
+.storage-fee-route span {
+  padding: 12px;
+  border: 1px solid var(--subtle);
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.storage-fee-route b,
+.storage-fee-route strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--text);
+  font-size: 0.8rem;
+}
+.storage-fee-route span:last-child {
+  border-color: var(--lime);
+}
+.storage-fee-route span:last-child b,
+.storage-fee-route span:last-child strong {
+  color: var(--lime);
+}
+.storage-pricing-detail {
+  margin-top: 16px;
+  border-top: 1px solid var(--subtle);
+}
+.storage-pricing-detail summary {
+  min-height: 48px;
+  padding: 16px 0 10px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.storage-pricing-detail p {
+  max-width: 90ch;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.storage-pricing-detail a {
+  color: var(--pink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.storage-upload-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 16px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+.storage-upload-note span {
+  color: var(--lime);
+}
+@media (max-width: 760px) {
+  .storage-pricing {
+    margin: 28px 0;
+    padding: 19px;
+    box-shadow: 4px 4px var(--purple);
+  }
+  .storage-pricing-heading {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .storage-pricing-heading .eyebrow {
+    font-size: 0.59rem;
+  }
+  .storage-pricing-heading h2 {
+    font-size: 1.5rem;
+  }
+  .storage-pricing-heading p {
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+  .storage-sticker {
+    padding: 9px;
+    font-size: 0.57rem;
+    transform: rotate(4deg);
+  }
+  .storage-sticker strong {
+    font-size: 0.95rem;
+  }
+  .storage-estimator {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .storage-price-card {
+    padding: 18px;
+  }
+  .storage-price {
+    font-size: 2.3rem;
+  }
+  .storage-fee-route {
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-top: 22px;
+  }
+  .storage-fee-route span {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .storage-fee-route span + span {
+    border-top: 0;
+  }
+  .storage-fee-route b,
+  .storage-fee-route strong {
+    margin: 0;
+    text-align: right;
+  }
+  .storage-fee-route span:last-child {
+    border-top: 1px solid var(--lime);
+  }
+}
+@media (max-width: 360px) {
+  .storage-pricing {
+    padding: 15px;
+  }
+  .storage-pricing-heading {
+    flex-direction: column;
+  }
+  .storage-sticker {
+    align-self: flex-end;
+    margin-top: -3px;
+  }
+  .storage-range-labels {
+    font-size: 0.6rem;
+  }
+  .storage-rate-row {
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .storage-presets button {
+    transition: none;
+  }
+}
+[data-motion="off"] .storage-presets button {
+  transition: none;
+}
+.storage-pricing--compact {
+  padding: 18px;
+}
+.storage-pricing--compact .storage-pricing-heading h2 {
+  font-size: 1.5rem;
+}
+.storage-pricing--compact .storage-estimator,
+.storage-pricing--compact .storage-fee-route {
+  grid-template-columns: 1fr;
+}
+.storage-pricing--compact .storage-fee-route span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.storage-pricing--compact .storage-fee-route b {
+  margin-top: 0;
+}
+.storage-pricing input:disabled,
+.storage-presets button:disabled {
+  cursor: default;
+  opacity: 0.6;
+  transform: none;
+}

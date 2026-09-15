@@ -54,7 +54,7 @@ async function main() {
   const description =
     "A permanent record of human history and knowledge, told through long-form video. Nikki’s founding chapter begins here.";
   function page(title: string, body: string, route = "/", js = false) {
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${e(title)} — Nikki</title><meta name="description" content="${e(description)}"><meta name="theme-color" content="#0a0a0c"><link rel="canonical" href="${origin}${route}"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)} — Nikki"><meta property="og:description" content="${e(description)}"><meta property="og:url" content="${origin}${route}"><meta name="twitter:card" content="summary"><link rel="icon" href="/images/nikki-logo.jpg" type="image/jpeg"><link rel="preload" href="/fonts/archivo-black.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/release.css"><link rel="stylesheet" href="/creators.css"><link rel="stylesheet" href="/experience.css">${route === "/" ? '<link rel="stylesheet" href="/landing.css"><link rel="preload" href="/images/nikki-logo.jpg" as="image"><script src="/landing-client.js" type="module"></script>' : ""}<script src="/creator-client.js" type="module"></script>${js ? '<script src="/archive.js" defer></script>' : ""}</head><body><a class="skip-link" href="#content">Skip to content</a><header class="nav"><a href="/" class="brand" aria-label="Nikki archive"><img class="brand-mark brand-logo" src="/images/nikki-logo.jpg" width="44" height="44" alt=""><span><span class="brand-name">NIKKI</span><span class="brand-caption">THE PERMANENT RECORD</span></span></a><nav class="nav-links" aria-label="Main navigation"><a href="/#archive"${route === "/" ? ' aria-current="page"' : ""}>Archive</a><a href="/creators/">Creators</a><a href="/creator-studio/">Creator studio</a><a href="/about/"${route === "/about/" ? ' aria-current="page"' : ""}>The idea ↗</a></nav><button class="btn btn-small creator-connect" data-connect>Connect wallet ↗</button><button id="motion-toggle" class="motion-toggle" aria-pressed="true">Motion: on</button><button class="app-menu-button" data-open-menu aria-label="Open menu">${icon("menu")}</button></header><div class="ticker"><span>Human history. Shared knowledge.</span><span>Recorded for the future</span><span>Built to outlast us ↗</span></div><main id="content" class="container">${body}</main><footer class="footer"><span>© ${new Date().getFullYear()} NIKKI · A RECORD WORTH KEEPING.</span><div class="footer-links"><a href="/about/">How Nikki works ↗</a><a href="/about/#roadmap">What comes next ↗</a><a href="/help/">Help & reports</a><a href="/library/">Library</a><a href="/privacy/">Privacy</a><a href="/about/#credits">Credits</a></div></footer>${mobileNavigation(route)}${appMenu()}${creatorDialogs()}</body></html>`;
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${e(title)} — Nikki</title><meta name="description" content="${e(description)}"><meta name="theme-color" content="#0a0a0c"><link rel="canonical" href="${origin}${route}"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)} — Nikki"><meta property="og:description" content="${e(description)}"><meta property="og:url" content="${origin}${route}"><meta name="twitter:card" content="summary"><link rel="icon" href="/images/nikki-logo.jpg" type="image/jpeg"><link rel="preload" href="/fonts/archivo-black.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/release.css"><link rel="stylesheet" href="/creators.css"><link rel="stylesheet" href="/experience.css">${route === "/creator-studio/" ? '<link rel="stylesheet" href="/storage-pricing.css"><script src="/storage-pricing-client.js" type="module"></script>' : ""}${route === "/" ? '<link rel="stylesheet" href="/landing.css"><link rel="preload" href="/images/nikki-logo.jpg" as="image"><script src="/landing-client.js" type="module"></script>' : ""}<script src="/creator-client.js" type="module"></script>${js ? '<script src="/archive.js" defer></script>' : ""}</head><body><a class="skip-link" href="#content">Skip to content</a><header class="nav"><a href="/" class="brand" aria-label="Nikki archive"><img class="brand-mark brand-logo" src="/images/nikki-logo.jpg" width="44" height="44" alt=""><span><span class="brand-name">NIKKI</span><span class="brand-caption">THE PERMANENT RECORD</span></span></a><nav class="nav-links" aria-label="Main navigation"><a href="/#archive"${route === "/" ? ' aria-current="page"' : ""}>Archive</a><a href="/creators/">Creators</a><a href="/creator-studio/">Creator studio</a><a href="/about/"${route === "/about/" ? ' aria-current="page"' : ""}>The idea ↗</a></nav><button class="btn btn-small creator-connect" data-connect>Connect wallet ↗</button><button id="motion-toggle" class="motion-toggle" aria-pressed="true">Motion: on</button><button class="app-menu-button" data-open-menu aria-label="Open menu">${icon("menu")}</button></header><div class="ticker"><span>Human history. Shared knowledge.</span><span>Recorded for the future</span><span>Built to outlast us ↗</span></div><main id="content" class="container">${body}</main><footer class="footer"><span>© ${new Date().getFullYear()} NIKKI · A RECORD WORTH KEEPING.</span><div class="footer-links"><a href="/about/">How Nikki works ↗</a><a href="/about/#roadmap">What comes next ↗</a><a href="/help/">Help & reports</a><a href="/library/">Library</a><a href="/privacy/">Privacy</a><a href="/about/#credits">Credits</a></div></footer>${mobileNavigation(route)}${appMenu()}${creatorDialogs()}</body></html>`;
   }
   await fs.copyFile(
     path.join(root, "public-site/creators.css"),
@@ -67,6 +67,10 @@ async function main() {
   await fs.copyFile(
     path.join(root, "public-site/landing.css"),
     path.join(out, "landing.css"),
+  );
+  await fs.copyFile(
+    path.join(root, "public-site/storage-pricing.css"),
+    path.join(out, "storage-pricing.css"),
   );
   await write(
     "creators/index.html",
@@ -114,6 +118,15 @@ async function main() {
     minify: true,
     entryPoints: [path.join(root, "public-site/landing-client.ts")],
     outfile: path.join(out, "landing-client.js"),
+  });
+  await build({
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    target: "es2022",
+    minify: true,
+    entryPoints: [path.join(root, "public-site/storage-pricing-client.ts")],
+    outfile: path.join(out, "storage-pricing-client.js"),
   });
   await write(
     "_routes.json",

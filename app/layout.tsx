@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import "../public-site/storage-pricing.css";
 import Providers from "@/components/Providers";
 import SignInButton from "@/components/SignInButton";
 export const metadata: Metadata = {

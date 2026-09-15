@@ -10,6 +10,7 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import SignInButton, { useAuth } from "@/components/SignInButton";
+import StoragePricingBar from "@/components/StoragePricingBar";
 import { post, sizeLabel, timeLeft } from "@/lib/client";
 import { CHUNK_BYTES, MAX_UPLOAD_BYTES, statusLabel } from "@/lib/rules";
 type Submission = {
@@ -438,6 +439,10 @@ export default function Studio() {
                   <p className="mono muted">{progress}% uploaded</p>
                 </>
               )}
+              <StoragePricingBar
+                bytes={file?.size}
+                founder={launch.releaseMode === "founder"}
+              />
               <button
                 className="btn btn-primary"
                 style={{ marginTop: 24 }}
@@ -501,6 +506,15 @@ export default function Studio() {
                 <span className="muted">+ Solana network fee</span>
               </p>
               <p className="mono muted">File SHA-256: {quote.sha256}</p>
+              <p>
+                Storage via Turbo on Arweave. Nikki’s platform fee:{" "}
+                <strong>0 SOL</strong>. Your SOL goes to the operational wallet
+                below to cover storage credits; Solana’s network fee is
+                separate.
+              </p>
+              <p className="mono" style={{ overflowWrap: "anywhere" }}>
+                Payment recipient: {quote.recipient}
+              </p>
               <p className="footnote">
                 Quote expires {new Date(quote.expiresAt).toLocaleTimeString()}.
                 Your wallet will show the operational payment recipient.

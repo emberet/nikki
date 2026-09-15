@@ -38,13 +38,21 @@ The user will supply the video later. Its title, context, recording date, source
 
 Permanent storage has not been exercised with a real video yet. If preservation is interrupted, follow `OPERATIONS.md`; do not upload an additional video or reset the founding reservation to bypass an uncertain receipt. Metadata-only completion after a confirmed partial upload is an operator recovery task that must be resolved before retrying.
 
+## Storage pricing preview
+
+Creator studio includes a live SOL storage estimator with 100 MB, 500 MB, and 1 GB presets and a size slider. The private video studio also uses the selected file’s size without uploading it to obtain an estimate. Rates come from Turbo’s public pricing service, carry a checked time, and expire after 15 minutes. If fresh rates are unavailable, the interface shows a retry state instead of a saved price.
+
+The display separates fee recipients: Turbo credits fund storage on Arweave, Solana receives the separate network transaction fee, and Nikki adds no platform markup or monthly storage fee. In the planned public payment flow, creators send SOL to the operational payment wallet shown at checkout to cover prepaid Turbo storage credits; the payment is not a direct transfer to Arweave. The first founder video remains project funded.
+
+This is a size-based preview, not a payment quote. It includes a small video storage overhead allowance; metadata storage, provider per-item charges, and network fees are additional. Creators review the final quote after approval, with the existing 15-minute quote expiry. **Public video uploads and storage payments remain closed.** This preview does not enable submission, charge a wallet, or change publication gates. See [Turbo pricing](https://docs.ar.io/build/upload/turbo-credits#pricing--fees).
+
 ## Validation
 
-- Production Next build; 27 unit/security tests and 28 isolated integration checks passed.
+- Production Next build; 38 unit/security tests passed after the pricing update. The initial founding release also passed 28 isolated integration checks.
 - Signature-aware public export tests, founder wallet gating, bounded request bodies.
 - Export inspected for private files, broken internal links, inline scripts, and fabricated records.
 - Deployed Pages routes return 200; unknown route returns 404; CSP and `nosniff` headers are present.
-- No browser interaction or visual QA was performed.
+- Pricing update: current Turbo rates verified in the Cloudflare local runtime; desktop, 390 px and 320 px layouts, size presets, keyboard slider input, and fee disclosure checked in browser. This does not replace the outstanding real-video publishing acceptance check.
 
 ## Next community release
 
