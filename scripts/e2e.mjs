@@ -27,7 +27,7 @@ class Session {
   }
   async signIn(kp) {
     const { nonce } = await (await this.fetch("/api/auth/nonce")).json();
-    const msg = new TextEncoder().encode(`Sign in to ForeverVid\nNonce: ${nonce}`);
+    const msg = new TextEncoder().encode(`Sign in to Nikki\nNonce: ${nonce}`);
     const sig = nacl.sign.detached(msg, kp.secretKey);
     const r = await this.fetch("/api/auth/verify", {
       method: "POST",

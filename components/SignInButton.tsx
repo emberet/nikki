@@ -29,7 +29,7 @@ export default function SignInButton({ onAuthed }: { onAuthed?: () => void }) {
     setBusy(true);
     try {
       const { nonce } = await (await fetch("/api/auth/nonce")).json();
-      const msg = new TextEncoder().encode(`Sign in to ForeverVid\nNonce: ${nonce}`);
+      const msg = new TextEncoder().encode(`Sign in to Nikki\nNonce: ${nonce}`);
       const sig = await signMessage(msg);
       const r = await fetch("/api/auth/verify", {
         method: "POST",

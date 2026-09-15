@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "no nonce" }, { status: 400 });
   }
   const message = new TextEncoder().encode(
-    `Sign in to ForeverVid\nNonce: ${session.nonce}`
+    `Sign in to Nikki\nNonce: ${session.nonce}`
   );
   const ok = nacl.sign.detached.verify(
     message,

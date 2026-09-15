@@ -5,7 +5,7 @@ import Providers from "@/components/Providers";
 import SignInButton from "@/components/SignInButton";
 
 export const metadata: Metadata = {
-  title: "ForeverVid — videos that can never be deleted",
+  title: "Nikki — videos that can never be deleted",
   description:
     "Long-form video, human-reviewed, then permanently stored on Arweave. No one — not even the creator — can ever take it down.",
 };
@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <nav className="nav">
             <Link href="/" className="logo">
-              Forever<span>Vid</span>
+              Nik<span>ki</span>
             </Link>
             <div className="links">
               <Link href="/">Watch</Link>

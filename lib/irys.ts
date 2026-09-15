@@ -3,7 +3,7 @@ import { Solana } from "@irys/upload-solana";
 import bs58 from "bs58";
 import { treasuryKeypair } from "./solana";
 
-export const APP_NAME = "ForeverVid";
+export const APP_NAME = "Nikki";
 
 async function getIrys() {
   const kp = treasuryKeypair();

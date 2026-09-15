@@ -11,7 +11,7 @@ export type SessionData = {
 
 export async function getSession(): Promise<IronSession<SessionData>> {
   return getIronSession<SessionData>(cookies(), {
-    cookieName: "forevervid_session",
+    cookieName: "nikki_session",
     password: process.env.SESSION_SECRET!,
     cookieOptions: { secure: process.env.NODE_ENV === "production" },
   });
