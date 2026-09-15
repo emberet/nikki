@@ -12,14 +12,17 @@
     "typecheck": "tsc --noEmit",
     "worker": "node --env-file-if-exists=.env --import tsx scripts/preservation-worker.ts",
     "start:production": "node --env-file-if-exists=.env scripts/start-production.mjs",
-    "format:check": "prettier --check app components lib scripts tests docs README.md package.json next.config.mjs",
+    "format:check": "prettier --check app components lib creator-worker public-site scripts tests docs README.md package.json next.config.mjs wrangler.jsonc",
     "storage:reconcile": "node --env-file-if-exists=.env --import tsx scripts/reconcile-storage.ts",
     "db:backup": "node --env-file-if-exists=.env scripts/backup-db.mjs",
-    "build:public": "node --env-file-if-exists=.env --import tsx scripts/build-public.ts"
+    "build:public": "node --env-file-if-exists=.env --import tsx scripts/build-public.ts",
+    "test:creators": "tsx --test tests/creators.test.ts"
   },
   "dependencies": {
     "@ardrive/turbo-sdk": "^1.43.0",
     "@prisma/client": "^6.19.3",
+    "@pump-fun/pump-sdk": "^2.0.0",
+    "@pump-fun/pump-swap-sdk": "1.20.0",
     "@solana/spl-token": "^0.4.15",
     "@solana/wallet-adapter-phantom": "^0.9.30",
     "@solana/wallet-adapter-react": "^0.15.40",
@@ -27,6 +30,7 @@
     "@solana/wallet-adapter-solflare": "^0.6.34",
     "@solana/web3.js": "^1.99.0",
     "bs58": "^6.0.0",
+    "buffer": "^6.0.3",
     "iron-session": "^9.0.1",
     "next": "^15.5.25",
     "prisma": "^6.19.3",
@@ -40,8 +44,10 @@
     "@types/node": "^20",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
     "prettier": "^3.9.6",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.131.2"
   },
   "overrides": {
     "elliptic": "6.6.1",

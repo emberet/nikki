@@ -2,11 +2,11 @@
 
 A neo-brutalist video archive for preserving human history and knowledge.
 
-**Status: public founding release on Cloudflare Pages.** The public archive starts empty; the founder’s video will be added later. Public uploads, payments, and voting are closed until the later community release. The private Node studio and preservation worker stay on the operator’s machine. No real payment or permanent upload has been made during deployment.
+**Status: founding archive live on Cloudflare Pages; creator upgrade built, awaiting a dedicated RPC and deployment.** Wallet-and-X channels, pump.fun creator tokens, token-holder subscriptions, and creator fee collection are implemented. The public archive starts empty; the founder’s video will be added later. Public video uploads, storage payments, and NIKKI voting are closed until the later community release. The private Node studio and preservation worker stay on the operator’s machine. No real payment or permanent upload has been made during deployment.
 
 ## Public release
 
-Run `npm run build:public` to export the verified founder archive to `dist-public/`. Upload **only that directory** (or a ZIP of its contents) to the Cloudflare Pages project `nikki-run`. The export validates founder signatures, omits all private records and server files, and creates watch pages only for records already marked published after storage verification. See [release operations](docs/PUBLIC_RELEASE.md).
+Run `npm run build:public` to export the verified founder archive to `dist-public/`. Deploy **only that directory** with `npx wrangler pages deploy dist-public --project-name nikki-run --branch main`. The public APIs use an advanced-mode Worker and a separate D1 database; apply their migrations and configure secrets first, as described in [creator operations](docs/CREATORS.md). The export validates founder signatures, omits all private records and server files, and creates watch pages only for records already marked published after storage verification. See [release operations](docs/PUBLIC_RELEASE.md).
 
 ## Run locally
 
@@ -44,7 +44,7 @@ npm run test:integration
 
 The integration script uses generated wallets, an isolated temporary database, a local RPC fixture, and no real payments or storage uploads. It checks authentication replay, upload limits, access control, election outcomes, historical payment recovery, and worker retention.
 
-The 1 GB boundary and streaming/chunk design are checked; a representative real 1 GB video has **not** been uploaded to permanent storage or playback-tested. X account linking has not been tested against live credentials. Browser interaction testing has not been performed.
+The 1 GB boundary and streaming/chunk design are checked; a representative real 1 GB video has **not** been uploaded to permanent storage or playback-tested. X credentials are configured in Cloudflare; a real user OAuth round trip and funded token launch/fee claim have not been exercised by the deployment agent. Browser interaction testing has not been performed.
 
 ## Before the community launch
 

@@ -6,18 +6,21 @@
 - Public origin: `https://nikki.run`. Cloudflare confirmed **Active / SSL enabled** on 15 September 2026.
 - Cloudflare hostname: `https://nikki-run.pages.dev`.
 - Apex DNS: CNAME `@` → `nikki-run.pages.dev`, managed through Pages custom domains.
-- Release package: `releases/nikki-founding-release.zip` (generated, ignored by Git).
-- The deployment contains 19 static files and zero video records at launch.
-- Uploaded ZIP SHA-256: `207746edb2d02d687fe3766bd14a45e99acad04eaf5fbf143f7154788dcd9f25`.
+- The archive still contains zero video records; the founder will supply the first video later.
+- Public creator accounts use the Pages advanced-mode Worker and `nikki-creators` D1 database.
 
-The public site is the archive, mission, future community rules, privacy page, and credits. There are no public API routes, account sessions, upload forms, wallet prompts, or payment collection. The Node application remains a private operator studio. No paid hosting plan or storage credit purchase was made for this deployment.
+The prepared creator upgrade adds creator channels linked to wallet/X, token-holder subscriptions, and explicit wallet-signed pump.fun token launch and fee collection. Creator tokens are separate from the future NIKKI governance token. The Node video publishing application remains a private operator studio. No token launch, fee collection, or permanent storage payment was executed by the deployment agent. No paid hosting plan was purchased.
+
+See [creator deployment and recovery](CREATORS.md) for D1, secrets, transaction controls, and validation limits.
+
+The creator upgrade has not been deployed yet. X secrets and the D1 schema are configured; `CREATOR_RPC_URL` is still required for the final live balance/transaction checks. `TOKEN_LAUNCH_ENABLED=false` remains in the deployment configuration.
 
 ## Rebuild the public archive
 
 1. Keep the private database and environment available locally. Set `RELEASE_MODE=founder` and the configured public founder wallet.
 2. Run `npm run build:public`. It exports only published founder records that match their signed metadata, with both permanent storage identifiers present. It fails if any published row is incompatible with this release.
 3. Review `dist-public/archive.json`. Never edit the generated count to suggest a video exists before preservation succeeds.
-4. Zip **the contents** of `dist-public/`, preserving relative paths. Upload that ZIP as a production deployment in Cloudflare Pages → `nikki-run`. Never upload the repository, `.env`, `held/`, a database, or a wallet key.
+4. Deploy with `npx wrangler pages deploy dist-public --project-name nikki-run --branch main`. Wrangler reads the D1 binding and public flags from `wrangler.jsonc`. Never upload the repository, `.env`, `held/`, a database, or a wallet key.
 5. Check Cloudflare deployment success and custom-domain status. Check the deployed archive count, headers, and 404 response through ordinary HTTP checks.
 
 `scripts/build-public.ts` generates the public pages, watch pages, JSON catalog, headers, and sitemap. Styling reuses `app/globals.css` plus public release overrides. Public image and font assets come from the explicit `public/images` and `public/fonts` directories. Font licenses are included.
@@ -37,7 +40,7 @@ Permanent storage has not been exercised with a real video yet. If preservation 
 
 ## Validation
 
-- Production Next build; 10 unit tests and 28 isolated integration checks passed.
+- Production Next build; 21 unit tests and 28 isolated integration checks passed.
 - Signature-aware public export tests, founder wallet gating, bounded request bodies.
 - Export inspected for private files, broken internal links, inline scripts, and fabricated records.
 - Deployed Pages routes return 200; unknown route returns 404; CSP and `nosniff` headers are present.
@@ -45,4 +48,4 @@ Permanent storage has not been exercised with a real video yet. If preservation 
 
 ## Next community release
 
-Do not enable public submissions or payments merely because the static site is live. The token, X credentials, complete RPC snapshot support, hosted upload storage and worker, payment-attempt coordination across tabs, live storage acceptance, and operational recovery still require the later release work described in `OPERATIONS.md`.
+Do not enable public submissions or payments merely because the static site is live. The NIKKI token, complete RPC snapshot support, hosted upload storage and worker, payment-attempt coordination across tabs, live storage acceptance, and operational recovery still require the later release work described in `OPERATIONS.md`.

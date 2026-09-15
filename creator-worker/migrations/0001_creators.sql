@@ -1,0 +1,16 @@
+CREATE TABLE creator_users (wallet TEXT PRIMARY KEY, x_id TEXT, x_username TEXT, x_linked_at INTEGER, created_at INTEGER NOT NULL);
+CREATE TABLE creator_profiles (wallet TEXT PRIMARY KEY REFERENCES creator_users(wallet), handle TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, bio TEXT NOT NULL DEFAULT '', category TEXT NOT NULL, accent TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+CREATE INDEX creator_profiles_public ON creator_profiles(published,created_at);
+CREATE TABLE creator_challenges (id TEXT PRIMARY KEY, wallet TEXT NOT NULL, message TEXT NOT NULL, browser_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX creator_challenges_expiry ON creator_challenges(expires_at);
+CREATE TABLE creator_sessions (token_hash TEXT PRIMARY KEY, wallet TEXT NOT NULL REFERENCES creator_users(wallet), expires_at INTEGER NOT NULL);
+CREATE INDEX creator_sessions_expiry ON creator_sessions(expires_at);
+CREATE TABLE creator_oauth (state_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL, wallet TEXT NOT NULL, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL);
+CREATE INDEX creator_oauth_expiry ON creator_oauth(expires_at);
+CREATE TABLE creator_rates (id TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 1, expires_at INTEGER NOT NULL);
+CREATE INDEX creator_rates_expiry ON creator_rates(expires_at);
+CREATE TABLE creator_tokens (mint TEXT PRIMARY KEY, wallet TEXT NOT NULL REFERENCES creator_users(wallet), name TEXT NOT NULL, symbol TEXT NOT NULL, description TEXT NOT NULL, accent TEXT NOT NULL, x_username TEXT NOT NULL, metadata_uri TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', created_at INTEGER NOT NULL, verified_at INTEGER, launch_signature TEXT);
+CREATE UNIQUE INDEX creator_token_active ON creator_tokens(wallet) WHERE status != 'abandoned';
+CREATE TABLE creator_intents (id TEXT PRIMARY KEY, wallet TEXT NOT NULL REFERENCES creator_users(wallet), kind TEXT NOT NULL, mint TEXT, message_hash TEXT NOT NULL, unsigned_tx TEXT NOT NULL, blockhash TEXT NOT NULL, last_valid_height INTEGER NOT NULL, estimated_lamports TEXT NOT NULL, created_at INTEGER NOT NULL, signature TEXT, signed_tx TEXT, status TEXT NOT NULL DEFAULT 'prepared');
+CREATE INDEX creator_intents_wallet ON creator_intents(wallet,created_at);
+CREATE UNIQUE INDEX creator_intents_active ON creator_intents(wallet,kind) WHERE status IN ('prepared','submitted');

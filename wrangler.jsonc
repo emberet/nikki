@@ -1,0 +1,17 @@
+{
+  "name": "nikki-run",
+  "pages_build_output_dir": "./dist-public",
+  "compatibility_date": "2026-09-15",
+  "d1_databases": [
+    {
+      "binding": "CREATORS_DB",
+      "database_name": "nikki-creators",
+      "database_id": "e2f2e4ac-3f2b-4a2c-9266-f22119a2bdf8",
+      "migrations_dir": "creator-worker/migrations",
+    },
+  ],
+  "vars": {
+    "PUBLIC_ORIGIN": "https://nikki.run",
+    "TOKEN_LAUNCH_ENABLED": "false",
+  },
+}

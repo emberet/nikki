@@ -52,3 +52,8 @@ test-mod.json
 # Public deployment output
 /dist-public/
 /releases/
+
+# Cloudflare local runtime and private configuration
+.wrangler/
+.dev.vars*
+.creator-secrets*

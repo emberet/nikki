@@ -2,7 +2,7 @@
 
 ## Public founding release
 
-The public website uses Cloudflare Pages project `nikki-run`, serving the generated `dist-public/` archive. It has no server API, accounts, wallet connection, creator uploads, payment collection, or voting. See [public release instructions](PUBLIC_RELEASE.md). The first video will be supplied later.
+The public website uses Cloudflare Pages project `nikki-run`, serving the generated `dist-public/` archive. Creator channels, wallet sessions, X pairing, pump.fun launch/claim transactions, and holder subscriptions run in a separate Cloudflare Worker with D1. Video uploads, storage payments, and NIKKI voting remain closed. See [creator operations](CREATORS.md). See [public release instructions](PUBLIC_RELEASE.md). The first video will be supplied later.
 
 ## Private studio deployment model
 
