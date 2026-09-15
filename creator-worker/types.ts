@@ -16,6 +16,18 @@ export interface Env {
   X_CLIENT_ID?: string;
   X_CLIENT_SECRET?: string;
   TOKEN_LAUNCH_ENABLED?: string;
+  FOUNDER_WALLET?: string;
+  CREATOR_MEDIA?: {
+    put(
+      key: string,
+      value: ArrayBuffer | Uint8Array,
+      options?: unknown,
+    ): Promise<unknown>;
+    get(
+      key: string,
+    ): Promise<{ body: ReadableStream; httpEtag: string } | null>;
+    delete(key: string): Promise<void>;
+  };
 }
 export interface CreatorUser {
   wallet: string;

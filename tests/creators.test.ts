@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 import {
@@ -42,15 +42,18 @@ const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite");
 function fixture() {
   const sql = new DatabaseSync(":memory:");
   sql.exec("PRAGMA foreign_keys=ON");
-  sql.exec(
-    readFileSync(
-      new URL(
-        "../creator-worker/migrations/0001_creators.sql",
-        import.meta.url,
+  for (const migration of readdirSync(
+    new URL("../creator-worker/migrations/", import.meta.url),
+  )
+    .filter((n) => n.endsWith(".sql"))
+    .sort()) {
+    sql.exec(
+      readFileSync(
+        new URL("../creator-worker/migrations/" + migration, import.meta.url),
+        "utf8",
       ),
-      "utf8",
-    ),
-  );
+    );
+  }
   class Statement {
     args: any[] = [];
     constructor(public query: string) {}
@@ -636,4 +639,310 @@ test("creator URLs return 404 for missing channels and retain published handles 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("location"), null);
   assert.equal(await response.text(), "/c/");
+});
+
+test("release support and founder operations keep requests private and audit replies", async () => {
+  const f = fixture(),
+    a = await f.login(),
+    b = await f.login(),
+    owner = await f.login();
+  f.env.FOUNDER_WALLET = owner.address;
+  assert.equal(
+    (await f.call("/ops/overview", undefined, a.cookie)).status,
+    403,
+  );
+  assert.equal((await f.call("/support")).status, 401);
+  assert.equal(
+    (
+      await f.call(
+        "/support",
+        {
+          category: "Other",
+          message: "Please help with my creator account.",
+          handle: "",
+        },
+        a.cookie,
+        { origin: "https://evil.test" },
+      )
+    ).status,
+    403,
+  );
+  const created = await f.call(
+    "/support",
+    {
+      category: "Account help",
+      message: "<script>alert(1)</script> Help with my account.",
+      handle: "",
+    },
+    a.cookie,
+  );
+  assert.equal(created.status, 201);
+  const { id } = (await created.json()) as any;
+  assert.equal(
+    ((await (await f.call("/support", undefined, b.cookie)).json()) as any)
+      .tickets.length,
+    0,
+  );
+  assert.equal(
+    (
+      await f.call(
+        "/ops/ticket",
+        { id, status: "resolved", reply: "Try reconnecting your wallet." },
+        a.cookie,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await f.call(
+        "/ops/ticket",
+        { id, status: "resolved", reply: "Try reconnecting your wallet." },
+        owner.cookie,
+      )
+    ).status,
+    200,
+  );
+  const own = await f.call("/support", undefined, a.cookie);
+  assert.equal(own.headers.get("cache-control"), "no-store");
+  const ticket = ((await own.json()) as any).tickets[0];
+  assert.equal(ticket.status, "resolved");
+  assert.equal(ticket.reply, "Try reconnecting your wallet.");
+  assert.equal(
+    f.sql.prepare("SELECT count(*) AS n FROM creator_ops_audit").get().n,
+    1,
+  );
+  assert.equal(
+    (await f.call("/ops/flags", { paused: true }, owner.cookie)).status,
+    200,
+  );
+  assert.equal(
+    f.sql.prepare("SELECT transactions_paused FROM creator_flags").get()
+      .transactions_paused,
+    1,
+  );
+  assert.equal(
+    (
+      await f.call(
+        "/transaction/submit",
+        { id: "a".repeat(64), transaction: "bad" },
+        a.cookie,
+      )
+    ).status,
+    503,
+  );
+});
+
+test("video library uses real archive IDs, isolates wallets, and preserves progress when saving", async () => {
+  const f = fixture(),
+    a = await f.login(),
+    b = await f.login(),
+    id = "a".repeat(43);
+  f.env.ASSETS.fetch = async () =>
+    Response.json({ records: [{ arweaveTx: id }] });
+  assert.equal(
+    (
+      await f.call(
+        "/library",
+        { recordId: "z".repeat(43), saved: true },
+        a.cookie,
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (await f.call("/library", { recordId: id, position: -1 }, a.cookie)).status,
+    400,
+  );
+  assert.equal(
+    (await f.call("/library", { recordId: id, position: 123.5 }, a.cookie))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await f.call("/library", { recordId: id, saved: true }, a.cookie)).status,
+    200,
+  );
+  const response = await f.call("/library", undefined, a.cookie);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  const item = ((await response.json()) as any).items[0];
+  assert.equal(item.position, 123.5);
+  assert.equal(item.saved, 1);
+  assert.deepEqual(
+    ((await (await f.call("/library", undefined, b.cookie)).json()) as any)
+      .items,
+    [],
+  );
+  assert.equal(
+    (
+      await f.call(
+        "/library",
+        { recordId: id, saved: false, position: 0 },
+        a.cookie,
+      )
+    ).status,
+    200,
+  );
+  assert.deepEqual(
+    ((await (await f.call("/library", undefined, a.cookie)).json()) as any)
+      .items,
+    [],
+  );
+});
+
+test("channel media rejects invalid uploads and serves draft artwork only to its owner", async () => {
+  const f = fixture(),
+    a = await f.login(),
+    b = await f.login();
+  await f.call("/profile", profile, a.cookie);
+  const objects = new Map<string, Uint8Array>();
+  f.env.CREATOR_MEDIA = {
+    async put(key, value) {
+      objects.set(key, new Uint8Array(value as Uint8Array));
+    },
+    async get(key) {
+      const bytes = objects.get(key);
+      return bytes
+        ? {
+            body: new Response(new Uint8Array(bytes)).body!,
+            httpEtag: '"test"',
+          }
+        : null;
+    },
+    async delete(key) {
+      objects.delete(key);
+    },
+  };
+  f.sql
+    .prepare("UPDATE creator_users SET x_id=?,x_username=? WHERE wallet=?")
+    .run("123", "historian", a.address);
+  const jpeg = new Uint8Array([
+    255, 216, 255, 192, 0, 11, 8, 0, 100, 0, 100, 1, 1, 17, 0, 255, 217,
+  ]);
+  async function upload(
+    bytes: Uint8Array,
+    cookie = a.cookie,
+    type = "image/jpeg",
+  ) {
+    return worker.fetch(
+      new Request(f.env.PUBLIC_ORIGIN + "/api/creators/profile/media/avatar", {
+        method: "POST",
+        headers: { origin: f.env.PUBLIC_ORIGIN!, "content-type": type, cookie },
+        body: new Uint8Array(bytes),
+      }),
+      f.env,
+      { waitUntil: () => {} },
+    );
+  }
+  assert.equal((await upload(jpeg, "")).status, 401);
+  assert.equal((await upload(jpeg, a.cookie, "image/svg+xml")).status, 415);
+  assert.equal((await upload(new Uint8Array(131073))).status, 413);
+  assert.equal((await upload(new Uint8Array([1, 2, 3]))).status, 415);
+  const r = await upload(jpeg);
+  assert.equal(r.status, 200);
+  const { id } = (await r.json()) as any;
+  assert.equal((await f.call("/media/" + id)).status, 404);
+  assert.equal((await f.call("/media/" + id, undefined, b.cookie)).status, 404);
+  const own = await f.call("/media/" + id, undefined, a.cookie);
+  assert.equal(own.status, 200);
+  assert.equal(own.headers.get("cache-control"), "no-store");
+  assert.equal(own.headers.get("content-type"), "image/jpeg");
+  f.sql
+    .prepare("UPDATE creator_users SET x_id=?,x_username=? WHERE wallet=?")
+    .run("123", "historian", a.address);
+  await f.call("/profile", { ...profile, published: true }, a.cookie);
+  assert.equal((await f.call("/media/" + id)).status, 200);
+  await f.call("/profile/media/avatar", { remove: true }, b.cookie);
+  assert.equal((await f.call("/media/" + id)).status, 200);
+  await f.call("/profile/media/avatar", { remove: true }, a.cookie);
+  assert.equal((await f.call("/media/" + id)).status, 404);
+});
+
+test("creator search accepts long literal queries and transaction history never returns signing payloads", async () => {
+  const f = fixture(),
+    a = await f.login(),
+    b = await f.login();
+  assert.equal(
+    (await f.call("/channels?q=" + encodeURIComponent("史".repeat(100))))
+      .status,
+    200,
+  );
+  const id = "a".repeat(64);
+  f.sql
+    .prepare(
+      "INSERT INTO creator_intents(id,wallet,kind,mint,message_hash,unsigned_tx,blockhash,last_valid_height,estimated_lamports,created_at,signature,signed_tx,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    )
+    .run(
+      id,
+      a.address,
+      "launch",
+      a.address,
+      "private-hash",
+      "unsigned-secret",
+      "hash",
+      1,
+      "10",
+      now(),
+      "sig",
+      "signed-secret",
+      "failed",
+    );
+  const history = await f.call("/transactions", undefined, a.cookie);
+  assert.equal(history.headers.get("cache-control"), "no-store");
+  const body = await history.text();
+  assert.ok(body.includes(id));
+  assert.ok(!body.includes("secret"));
+  assert.ok(!body.includes("message_hash"));
+  assert.ok(!body.includes("unsigned_tx"));
+  assert.equal(
+    ((await (await f.call("/transactions", undefined, b.cookie)).json()) as any)
+      .transactions.length,
+    0,
+  );
+  assert.equal(
+    (await f.call("/transactions?offset=-1", undefined, a.cookie)).status,
+    400,
+  );
+});
+
+test("storage caps are atomic and allow replacing library state at capacity", async () => {
+  const f = fixture(),
+    a = await f.login();
+  const insert = f.sql.prepare(
+    "INSERT INTO creator_library(wallet,record_id,updated_at) VALUES(?,?,?)",
+  );
+  for (let i = 0; i < 500; i++)
+    insert.run(a.address, String(i).padStart(43, "a"), now());
+  assert.throws(
+    () => insert.run(a.address, "z".repeat(43), now()),
+    /LIBRARY_FULL/,
+  );
+  assert.doesNotThrow(() =>
+    f.sql
+      .prepare(
+        "INSERT INTO creator_library(wallet,record_id,updated_at,saved) VALUES(?,?,?,1) ON CONFLICT(wallet,record_id) DO UPDATE SET saved=1",
+      )
+      .run(a.address, String(0).padStart(43, "a"), now()),
+  );
+  const art = f.sql.prepare(
+    "INSERT INTO creator_assets(id,wallet,kind,object_key,bytes,width,height,created_at) VALUES(?,?,'banner',?,393216,1200,400,?)",
+  );
+  for (let i = 0; i < 5; i++) art.run(String(i), a.address, String(i), now());
+  assert.throws(
+    () => art.run("six", a.address, "six", now()),
+    /ART_OWNER_FULL/,
+  );
+});
+
+test("public cache keys discard tracking parameters and keep search and pagination distinct", async () => {
+  const { publicCacheKey } = await import("../creator-worker/cache");
+  const key = (query: string) =>
+    publicCacheKey(new URL("https://nikki.test/api/creators/channels" + query))
+      .url;
+  assert.equal(
+    key("?q=history&offset=00&utm_test=one"),
+    key("?offset=0&q=history&random=two"),
+  );
+  assert.notEqual(key("?q=history"), key("?q=knowledge"));
+  assert.notEqual(key("?offset=0"), key("?offset=25"));
 });

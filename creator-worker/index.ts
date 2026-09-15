@@ -1,3 +1,6 @@
+import { releaseApi, transactionsPaused } from "./release";
+import { mediaApi, cleanupMedia } from "./media";
+import { cachedHoldings, edgeCache, publicCacheKey, limitRead } from "./cache";
 import { PublicKey } from "@solana/web3.js";
 import { auth, session } from "./auth";
 import {
@@ -23,7 +26,7 @@ import {
 } from "./chain";
 import type { CreatorToken, Env, Intent, Profile } from "./types";
 
-const publicSelect = `SELECT p.wallet,p.handle,p.display_name,p.bio,p.category,p.accent,p.created_at,u.x_id,u.x_username,t.mint,t.name AS token_name,t.symbol AS token_symbol,t.verified_at FROM creator_profiles p JOIN creator_users u ON u.wallet=p.wallet LEFT JOIN creator_tokens t ON t.wallet=p.wallet AND t.status='verified' WHERE p.published=1 AND u.x_id IS NOT NULL`;
+const publicSelect = `SELECT p.wallet,p.handle,p.display_name,p.bio,p.category,p.accent,p.avatar_id,p.banner_id,p.created_at,u.x_id,u.x_username,t.mint,t.name AS token_name,t.symbol AS token_symbol,t.verified_at FROM creator_profiles p JOIN creator_users u ON u.wallet=p.wallet LEFT JOIN creator_tokens t ON t.wallet=p.wallet AND t.status='verified' WHERE p.published=1 AND u.x_id IS NOT NULL`;
 const accents = ["purple", "lime", "pink", "blue"];
 const categories = ["History", "Knowledge", "Culture"];
 async function ownedToken(env: Env, address: string) {
@@ -64,6 +67,7 @@ async function api(req: Request, env: Env): Promise<Response> {
         !!env.X_CLIENT_ID &&
         !!env.X_CLIENT_SECRET,
       provider: "pump.fun",
+      imagesEnabled: !!env.CREATOR_MEDIA,
       videosPublic: true,
     });
   if (!env.CREATORS_DB)
@@ -73,7 +77,11 @@ async function api(req: Request, env: Env): Promise<Response> {
     );
   if (req.method !== "GET") sameOrigin(req, env);
   const ip = req.headers.get("cf-connecting-ip") || "local";
-  await limit(env, "api", ip, 120);
+  if (req.method !== "GET" || route.startsWith("/auth"))
+    await limit(env, "api", ip, 120);
+  const extension =
+    (await mediaApi(req, env, route)) || (await releaseApi(req, env, route));
+  if (extension) return extension;
   const authentication = await auth(req, env, route);
   if (authentication) return authentication;
   if (route === "/me" && req.method === "GET") {
@@ -100,6 +108,7 @@ async function api(req: Request, env: Env): Promise<Response> {
         wallet: address,
         xVerified: !!current.user.x_id,
         xUsername: current.user.x_username,
+        isFounder: !!env.FOUNDER_WALLET && address === env.FOUNDER_WALLET,
       },
       profile,
       token,
@@ -116,10 +125,9 @@ async function api(req: Request, env: Env): Promise<Response> {
       bindings: unknown[] = [];
     if (q) {
       conditions.push(
-        "(p.display_name LIKE ? ESCAPE '\\' OR p.bio LIKE ? ESCAPE '\\' OR p.handle LIKE ? ESCAPE '\\' OR u.x_username LIKE ? ESCAPE '\\')",
+        "(instr(lower(p.display_name),lower(?))>0 OR instr(lower(p.bio),lower(?))>0 OR instr(lower(p.handle),lower(?))>0 OR instr(lower(u.x_username),lower(?))>0)",
       );
-      const term = "%" + q.replace(/[\\%_]/g, "\\$&") + "%";
-      bindings.push(term, term, term, term);
+      bindings.push(q, q, q, q);
     }
     if (categories.includes(category)) {
       conditions.push("p.category=?");
@@ -128,13 +136,13 @@ async function api(req: Request, env: Env): Promise<Response> {
     const result = await env.CREATORS_DB.prepare(
       publicSelect +
         (conditions.length ? " AND " + conditions.join(" AND ") : "") +
-        " ORDER BY p.created_at DESC,p.wallet LIMIT 25 OFFSET ?",
+        " ORDER BY p.created_at DESC,p.wallet LIMIT 26 OFFSET ?",
     )
       .bind(...bindings, cursor)
       .all();
     return json({
-      channels: result.results,
-      nextOffset: result.results.length === 25 ? cursor + 25 : null,
+      channels: result.results.slice(0, 25),
+      nextOffset: result.results.length > 25 ? cursor + 25 : null,
     });
   }
   if (/^\/channels\/[a-z0-9_]{3,24}$/.test(route) && req.method === "GET") {
@@ -221,29 +229,28 @@ async function api(req: Request, env: Env): Promise<Response> {
   if (route === "/subscriptions" && req.method === "GET") {
     const current = await session(req, env);
     await limit(env, "holdings", current.user!.wallet, 6);
-    const balances = await holdings(env, current.user!.wallet),
-      positive = [...balances]
-        .filter(([, amount]) => amount > 0n)
-        .map(([mint]) => mint);
-    const channels: Record<string, unknown>[] = [];
-    for (let i = 0; i < positive.length; i += 80) {
-      const group = positive.slice(i, i + 80);
-      const result = await env.CREATORS_DB.prepare(
-        publicSelect +
-          " AND t.mint IN (" +
-          group.map(() => "?").join(",") +
-          ")",
-      )
-        .bind(...group)
-        .all();
-      for (const row of result.results)
-        channels.push({
-          ...row,
-          balanceRaw: balances.get(String(row.mint))!.toString(),
-        });
-    }
-    return json({ channels, checkedAt: now() });
+    const { balances, checkedAt } = await cachedHoldings(
+      env,
+      current.user!.wallet,
+    );
+    const positive = [...balances]
+      .filter(([, amount]) => amount > 0n)
+      .map(([mint]) => mint);
+    const result = await env.CREATORS_DB.prepare(
+      publicSelect +
+        " AND t.mint IN (SELECT value FROM json_each(?)) ORDER BY p.created_at DESC LIMIT 250",
+    )
+      .bind(JSON.stringify(positive))
+      .all();
+    return json({
+      channels: result.results.map((row) => ({
+        ...row,
+        balanceRaw: balances.get(String(row.mint))!.toString(),
+      })),
+      checkedAt,
+    });
   }
+
   if (/^\/membership\/[a-z0-9_]{3,24}$/.test(route) && req.method === "GET") {
     const current = await session(req, env);
     await limit(env, "membership", current.user!.wallet, 8);
@@ -254,12 +261,16 @@ async function api(req: Request, env: Env): Promise<Response> {
       .first<{ mint: string | null }>();
     if (!profile) throw new ApiError(404, "Channel not found.");
     if (!profile.mint) return json({ subscribed: false, reason: "no_token" });
-    const balances = await holdings(env, current.user!.wallet),
-      balance = balances.get(profile.mint) || 0n;
+    const { balances, checkedAt } = await cachedHoldings(
+      env,
+      current.user!.wallet,
+      profile.mint,
+    );
+    const balance = balances.get(profile.mint) || 0n;
     return json({
       subscribed: balance > 0n,
       balanceRaw: balance.toString(),
-      checkedAt: now(),
+      checkedAt,
     });
   }
   const metadataMatch = route.match(
@@ -414,7 +425,7 @@ async function api(req: Request, env: Env): Promise<Response> {
     const current = await session(req, env);
     if (!current.user!.x_id)
       throw new ApiError(409, "Verify your X account first.");
-    if (env.TOKEN_LAUNCH_ENABLED !== "true")
+    if (env.TOKEN_LAUNCH_ENABLED !== "true" || (await transactionsPaused(env)))
       throw new ApiError(
         503,
         "Token transactions are not open yet. Your channel and draft are saved.",
@@ -434,7 +445,7 @@ async function api(req: Request, env: Env): Promise<Response> {
   }
   if (route === "/transaction/submit" && req.method === "POST") {
     const current = await session(req, env);
-    if (env.TOKEN_LAUNCH_ENABLED !== "true")
+    if (env.TOKEN_LAUNCH_ENABLED !== "true" || (await transactionsPaused(env)))
       throw new ApiError(503, "New token transactions are paused.");
     await limit(env, "submit", current.user!.wallet, 10);
     const data = await body(req);
@@ -470,31 +481,76 @@ export default {
     const url = new URL(req.url);
     if (url.pathname.startsWith("/api/creators")) {
       try {
+        const cacheable =
+          req.method === "GET" &&
+          /^\/api\/creators\/channels(?:\/[a-z0-9_]{3,24})?\/?$/.test(
+            url.pathname,
+          );
+        const cache = cacheable ? edgeCache() : undefined;
+        const cacheKey = publicCacheKey(url);
+        const hit = await cache?.match(cacheKey);
+        if (hit) return hit;
+        if (req.method === "GET")
+          limitRead(req.headers.get("cf-connecting-ip") || "local");
         const response = await api(req, env);
+        if (cache && response.ok) {
+          response.headers.set("Cache-Control", "public,max-age=15");
+          ctx.waitUntil(cache.put(cacheKey, response.clone()).catch(() => {}));
+        }
         if (env.CREATORS_DB && Math.random() < 0.01)
-          ctx.waitUntil(cleanup(env).catch(() => {}));
+          ctx.waitUntil(
+            Promise.all([cleanup(env), cleanupMedia(env)]).catch(() => {}),
+          );
         return response;
       } catch (error) {
+        const requestId = crypto.randomUUID();
+        if (url.pathname === "/api/creators/auth/x/callback")
+          return new Response(
+            `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reconnect X — Nikki</title><link rel="stylesheet" href="/theme.css"></head><body><main class="container"><section class="page-header"><h1>Let’s get you back.</h1><p>X verification could not be completed. Return to the same wallet browser where you started, open your studio, and choose Verify X again.</p><p>Your saved channel is still here.</p><a class="btn btn-primary" href="/creator-studio/">Back to your studio ↗</a><a class="btn" href="/help/">Get help</a></section></main></body></html>`,
+            {
+              status: error instanceof ApiError ? error.status : 503,
+              headers: {
+                "Content-Type": "text/html; charset=utf-8",
+                "Cache-Control": "no-store",
+                "Referrer-Policy": "no-referrer",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy":
+                  "default-src 'self'; frame-ancestors 'none'; base-uri 'none'",
+              },
+            },
+          );
         if (error instanceof ApiError)
           return json(
-            { error: error.message },
+            { error: error.message, requestId },
             error.status,
             error.status === 429 ? { "Retry-After": "60" } : {},
           );
         console.error(
           "Creator request failed",
+          requestId,
+          url.pathname,
           error instanceof Error ? error.name : "Unknown",
         );
         return json(
           {
             error:
               "This service could not complete the request. Please try again shortly.",
+            requestId,
           },
           503,
         );
       }
     }
     if (/^\/c\/[a-z0-9_]{3,24}\/?$/.test(url.pathname)) {
+      try {
+        limitRead(req.headers.get("cf-connecting-ip") || "local");
+      } catch {
+        return json(
+          { error: "Too many requests. Please try again shortly." },
+          429,
+          { "Retry-After": "60" },
+        );
+      }
       const handle = url.pathname.split("/")[2];
       const profile = env.CREATORS_DB
         ? await env.CREATORS_DB.prepare(publicSelect + " AND p.handle=?")

@@ -10,8 +10,12 @@
       "migrations_dir": "creator-worker/migrations",
     },
   ],
+  "r2_buckets": [
+    { "binding": "CREATOR_MEDIA", "bucket_name": "nikki-creator-media" },
+  ],
   "vars": {
     "PUBLIC_ORIGIN": "https://nikki.run",
     "TOKEN_LAUNCH_ENABLED": "true",
+    "FOUNDER_WALLET": "FcRL7KJYC1h1HLMbwZELZftxkZFAg4v5cgAKNqfFfiUC",
   },
 }

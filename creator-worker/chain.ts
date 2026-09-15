@@ -128,14 +128,22 @@ export async function tokenIdentity(env: Env, token: CreatorToken) {
     );
   return { curve, online };
 }
-export async function holdings(env: Env, address: string) {
+export async function holdings(env: Env, address: string, mint?: string) {
   const c = connection(env),
     owner = new PublicKey(address);
-  const accounts = await Promise.all(
-    [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID].map((programId) =>
-      c.getParsedTokenAccountsByOwner(owner, { programId }, "finalized"),
-    ),
-  );
+  const accounts = mint
+    ? [
+        await c.getParsedTokenAccountsByOwner(
+          owner,
+          { mint: new PublicKey(mint) },
+          "finalized",
+        ),
+      ]
+    : await Promise.all(
+        [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID].map((programId) =>
+          c.getParsedTokenAccountsByOwner(owner, { programId }, "finalized"),
+        ),
+      );
   const totals = new Map<string, bigint>();
   for (const group of accounts) {
     if (group.value.length > 20000)

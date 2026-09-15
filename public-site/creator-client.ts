@@ -1,3 +1,4 @@
+import { startExperience } from "./experience-client";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { Keypair, VersionedTransaction } from "@solana/web3.js";
@@ -16,9 +17,16 @@ type Channel = {
   mint: string | null;
   token_name: string | null;
   token_symbol: string | null;
+  avatar_id?: string | null;
+  banner_id?: string | null;
 };
 type Me = {
-  user: { wallet: string; xVerified: boolean; xUsername: string | null } | null;
+  user: {
+    wallet: string;
+    xVerified: boolean;
+    xUsername: string | null;
+    isFounder?: boolean;
+  } | null;
   profile: any;
   token: any;
   intent: any;
@@ -60,7 +68,10 @@ let adapter: Wallet | null = null,
   config: any = {},
   prepared: Prepared | null = null,
   mintKey: Keypair | null = null;
-let directoryRequest = 0;
+let directoryRequest = 0,
+  directoryOffset: number | null = 0,
+  directoryChannels: Channel[] = [],
+  identityEpoch = 0;
 const initialTokenPanel = $("#token-panel")?.innerHTML || "";
 let toastTimer: ReturnType<typeof setTimeout>;
 async function request(path: string, data?: unknown) {
@@ -97,21 +108,29 @@ function feedback(selector: string, message: string, error = false) {
 async function action(button: HTMLButtonElement, fn: () => Promise<void>) {
   if (button.disabled) return;
   const label = button.textContent;
+  const epoch = identityEpoch;
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
   try {
     await fn();
   } catch (err) {
-    toast(err instanceof Error ? err.message : "Please try again.");
+    if (epoch === identityEpoch)
+      toast(err instanceof Error ? err.message : "Please try again.");
   } finally {
     button.disabled = false;
     button.removeAttribute("aria-busy");
     if (label && button.textContent === "Working…") button.textContent = label;
   }
 }
+let meRequest = 0;
 async function refreshMe() {
+  const sequence = ++meRequest;
   const next = await request("/me");
+  if (sequence !== meRequest) return;
   if (me.user?.wallet !== next.user?.wallet) {
+    identityEpoch++;
+    const subscriptionsBox = $("#subscriptions-results");
+    if (subscriptionsBox) subscriptionsBox.innerHTML = "";
     prepared = null;
     mintKey = null;
     $<HTMLFormElement>("#channel-form")?.reset();
@@ -139,6 +158,7 @@ async function refreshMe() {
       : "Connect wallet ↗";
   }
   if ($("#channel-form")) renderStudio();
+  await experience.accountChanged();
 }
 function walletDialog() {
   const dialog = $<HTMLDialogElement>("#wallet-dialog");
@@ -160,6 +180,17 @@ async function connect(choice: string) {
     choice === "solflare"
       ? new SolflareWalletAdapter()
       : new PhantomWalletAdapter();
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (mobile && adapter.readyState !== "Installed") {
+    const page = encodeURIComponent(location.origin + "/creator-studio/"),
+      ref = encodeURIComponent(location.origin);
+    const url =
+      choice === "solflare"
+        ? `https://solflare.com/ul/v1/browse/${page}?ref=${ref}`
+        : `https://phantom.app/ul/browse/${page}?ref=${ref}`;
+    message.innerHTML = `<a class="btn btn-primary" href="${e(url)}">Open Nikki in ${e(adapter.name)} ↗</a><p>Continue inside your wallet’s browser, then connect again.</p>`;
+    return;
+  }
   if (adapter.readyState !== "Installed" && adapter.readyState !== "Loadable") {
     message.innerHTML = `Install <a class="text-link" href="${e(adapter.url)}" target="_blank" rel="noreferrer">${e(adapter.name)} ↗</a>, then return here. On mobile, open Nikki in your wallet’s browser.`;
     return;
@@ -191,9 +222,9 @@ function tone(value: string) {
   return ["purple", "lime", "pink", "blue"].includes(value) ? value : "purple";
 }
 function channelCard(channel: Channel) {
-  return `<article class="creator-card tone-${tone(channel.accent)}"><a class="channel-cover" href="/c/${e(channel.handle)}/" aria-label="Open ${e(channel.display_name)}"><span class="cover-symbol">${channel.category === "History" ? "∞" : channel.category === "Culture" ? "✳" : "↗"}</span><span class="cover-caption">${e(channel.category)}</span></a><div class="channel-card-body"><a class="channel-avatar" href="/c/${e(channel.handle)}/" aria-hidden="true" tabindex="-1">${e(channel.display_name.slice(0, 2).toUpperCase())}</a><a href="/c/${e(channel.handle)}/"><h2>${e(channel.display_name)}</h2></a><a class="x-link" href="https://x.com/i/user/${e(channel.x_id)}" target="_blank" rel="noreferrer">𝕏 @${e(channel.x_username)} <span class="verified-mark" title="Wallet paired with this X account">✓</span></a><p>${e(channel.bio || "A new channel, with a story to tell.")}</p><div class="channel-card-bottom"><span class="holder-tag">${channel.mint ? "♡ $" + e(channel.token_symbol) : "TOKEN NOT LAUNCHED"}</span><a href="/c/${e(channel.handle)}/" class="card-arrow" aria-label="Open channel">↗</a></div></div></article>`;
+  return `<article class="creator-card tone-${tone(channel.accent)}"><a class="channel-cover" href="/c/${e(channel.handle)}/" aria-label="Open ${e(channel.display_name)}">${channel.banner_id ? `<img loading="lazy" src="/api/creators/media/${e(channel.banner_id)}" alt="" width="1200" height="400">` : ""}<span class="cover-symbol">${channel.category === "History" ? "∞" : channel.category === "Culture" ? "✳" : "↗"}</span><span class="cover-caption">${e(channel.category)}</span></a><div class="channel-card-body"><a class="channel-avatar" href="/c/${e(channel.handle)}/" aria-hidden="true" tabindex="-1">${channel.avatar_id ? `<img loading="lazy" src="/api/creators/media/${e(channel.avatar_id)}" alt="" width="400" height="400">` : e(channel.display_name.slice(0, 2).toUpperCase())}</a><a href="/c/${e(channel.handle)}/"><h2>${e(channel.display_name)}</h2></a><a class="x-link" href="https://x.com/i/user/${e(channel.x_id)}" target="_blank" rel="noreferrer">𝕏 @${e(channel.x_username)} <span class="verified-mark" title="Wallet paired with this X account">✓</span></a><p>${e(channel.bio || "A new channel, with a story to tell.")}</p><div class="channel-card-bottom"><span class="holder-tag">${channel.mint ? "♡ $" + e(channel.token_symbol) : "TOKEN NOT LAUNCHED"}</span><a href="/c/${e(channel.handle)}/" class="card-arrow" aria-label="Open channel">↗</a></div></div></article>`;
 }
-async function directory() {
+async function directory(more = false) {
   if (!$("#creator-directory-results")) return;
   const sequence = ++directoryRequest;
   const query = $<HTMLInputElement>("#creator-search")?.value || "";
@@ -205,12 +236,18 @@ async function directory() {
       "/channels?q=" +
         encodeURIComponent(query) +
         "&category=" +
-        encodeURIComponent(selected),
+        encodeURIComponent(selected) +
+        "&offset=" +
+        (more ? directoryOffset || 0 : 0),
     );
     if (sequence !== directoryRequest) return;
-    if (result.channels.length)
+    directoryChannels = more
+      ? [...directoryChannels, ...result.channels]
+      : result.channels;
+    directoryOffset = result.nextOffset;
+    if (directoryChannels.length)
       $("#creator-directory-results")!.innerHTML =
-        `<div class="creator-card-grid">${result.channels.map(channelCard).join("")}</div>${result.nextOffset !== null ? '<p class="field-help">Showing the first 25 matches. Narrow your search to find a creator.</p>' : ""}`;
+        `<p class="directory-count">${directoryChannels.length} ${directoryChannels.length === 1 ? "creator" : "creators"} found</p><div class="creator-card-grid">${directoryChannels.map(channelCard).join("")}</div>${directoryOffset !== null ? '<button class="btn directory-more" id="more-creators">More people to meet ↓</button>' : ""}`;
     else if (query || selected)
       $("#creator-directory-results")!.innerHTML =
         '<div class="empty-state"><h2>No matching creators yet.</h2><p>Try another name or category.</p></div>';
@@ -219,7 +256,9 @@ async function directory() {
         `<div class="channel-invitation"><div class="identity-shapes" aria-hidden="true"><span>↗</span><span>♡</span><span>∞</span></div><span class="eyebrow accent">MAKE SOMETHING WORTH KEEPING</span><h2>Your corner of the internet.<br>With a longer memory.</h2><p>Be here from the beginning. Publish your wallet-and-X channel, then bring your people.</p><a class="btn btn-primary" href="/creator-studio/">Start your channel ↗</a></div>`;
     return result.channels as Channel[];
   } catch (err) {
-    toast(err instanceof Error ? err.message : "Creators could not be loaded.");
+    if (sequence !== directoryRequest) return;
+    $("#creator-directory-results")!.innerHTML =
+      `<div class="empty-state"><h2>Couldn’t load creators.</h2><p>${e(err instanceof Error ? err.message : "Please try again.")}</p><button class="btn" id="retry-creators">Try again ↻</button></div>`;
   }
 }
 function preview() {
@@ -236,9 +275,18 @@ function preview() {
     data.get("bio") ||
       "A little context goes a long way. Tell your future subscribers what you make.",
   );
-  $("#channel-preview .channel-avatar")!.textContent = name
-    .slice(0, 2)
-    .toUpperCase();
+  $("#channel-preview .channel-avatar")!.innerHTML = me.profile?.avatar_id
+    ? `<img src="/api/creators/media/${e(me.profile.avatar_id)}" alt="" width="400" height="400">`
+    : e(name.slice(0, 2).toUpperCase());
+  const cover = $("#channel-preview .channel-cover");
+  if (cover) {
+    cover.querySelector("img")?.remove();
+    if (me.profile?.banner_id)
+      cover.insertAdjacentHTML(
+        "afterbegin",
+        `<img src="/api/creators/media/${e(me.profile.banner_id)}" alt="" width="1200" height="400">`,
+      );
+  }
 }
 function renderStudio() {
   const access = $("#studio-access")!;
@@ -305,6 +353,7 @@ async function saveChannel(publish: boolean) {
   const form = $<HTMLFormElement>("#channel-form")!;
   if (!form.reportValidity()) return;
   const data = new FormData(form);
+  const epoch = identityEpoch;
   try {
     const result = await request("/profile", {
       handle: data.get("handle"),
@@ -314,6 +363,7 @@ async function saveChannel(publish: boolean) {
       accent: data.get("accent"),
       published: publish || !!me.profile?.published,
     });
+    if (epoch !== identityEpoch) return;
     await refreshMe();
     feedback(
       "#channel-message",
@@ -327,6 +377,7 @@ async function saveChannel(publish: boolean) {
         : "Draft saved.",
     );
   } catch (err) {
+    if (epoch !== identityEpoch) return;
     feedback(
       "#channel-message",
       err instanceof Error ? err.message : "Could not save.",
@@ -396,6 +447,7 @@ async function reviewTransaction(kind: "launch" | "claim") {
     throw Error(
       "The mint key exists only in the tab that created this draft. Check the launch status before discarding an unlaunched draft.",
     );
+  const epoch = identityEpoch;
   const dialog = $<HTMLDialogElement>("#transaction-dialog")!;
   $("#transaction-title")!.textContent =
     kind === "launch"
@@ -409,7 +461,9 @@ async function reviewTransaction(kind: "launch" | "claim") {
   $<HTMLButtonElement>("#check-transaction")!.hidden = true;
   dialog.showModal();
   try {
-    prepared = await request("/transaction/prepare", { kind });
+    const result = await request("/transaction/prepare", { kind });
+    if (epoch !== identityEpoch) return;
+    prepared = result;
     $("#transaction-details")!.innerHTML =
       `<div class="transaction-cost"><span>Estimated network + account cost</span><strong>${e(sol(prepared!.estimatedLamports))} SOL</strong></div><dl class="record-details"><dt>YOUR WALLET</dt><dd class="mono">${e(me.user!.wallet)}</dd><dt>${kind === "launch" ? "CREATOR TOKEN" : "FEES"}</dt><dd>${kind === "launch" ? "$" + e(me.token.symbol) + " · " + e(me.token.name) : "Native SOL creator fees and available PumpSwap fees"}</dd></dl><p>${kind === "launch" ? "This creates a token through pump.fun with your wallet as creator and fee recipient. It does not include an initial purchase. Metadata is hosted by Nikki." : "Collected funds go to your connected creator wallet. This total can include fees from other tokens launched by this wallet."}</p><p class="field-help">${kind === "launch" ? "Token creation is an on-chain action. Token value and trading activity are not guaranteed. Holding the token does not grant rights to your content or revenue." : "The displayed amount can change before confirmation. Your wallet will show the transaction before you approve."}</p>`;
     if (prepared!.signature) {
@@ -421,6 +475,7 @@ async function reviewTransaction(kind: "launch" | "claim") {
       );
     } else $<HTMLButtonElement>("#sign-transaction")!.disabled = false;
   } catch (err) {
+    if (epoch !== identityEpoch) return;
     feedback(
       "#transaction-message",
       err instanceof Error
@@ -438,6 +493,8 @@ async function signTransaction() {
     adapter.publicKey?.toBase58() !== me.user?.wallet
   )
     throw Error("Connect the channel’s wallet again.");
+  const epoch = identityEpoch,
+    intentId = prepared.id;
   const transaction = VersionedTransaction.deserialize(
     Buffer.from(prepared.transaction, "base64"),
   );
@@ -451,6 +508,7 @@ async function signTransaction() {
   feedback("#transaction-message", "Review and sign in your wallet…");
   try {
     const signed = await adapter.signTransaction(transaction);
+    if (epoch !== identityEpoch) return;
     feedback(
       "#transaction-message",
       "Submitting the exact signed transaction…",
@@ -458,11 +516,13 @@ async function signTransaction() {
     $<HTMLButtonElement>("#sign-transaction")!.hidden = true;
     $<HTMLButtonElement>("#check-transaction")!.hidden = false;
     await request("/transaction/submit", {
-      id: prepared.id,
+      id: intentId,
       transaction: Buffer.from(signed.serialize()).toString("base64"),
     });
+    if (epoch !== identityEpoch) return;
     await checkTransaction();
   } catch (err) {
+    if (epoch !== identityEpoch) return;
     feedback(
       "#transaction-message",
       err instanceof Error ? err.message : "The transaction was not completed.",
@@ -474,7 +534,9 @@ async function signTransaction() {
 async function checkTransaction() {
   const id = prepared?.id || me.intent?.id;
   if (!id) throw Error("There is no submitted transaction yet.");
+  const epoch = identityEpoch;
   const result = await request("/transaction/status", { id });
+  if (epoch !== identityEpoch) return;
   if (result.status === "confirmed") {
     feedback("#transaction-message", "Confirmed on Solana. You’re all set.");
     toast(
@@ -506,7 +568,9 @@ async function checkTransaction() {
   }
 }
 async function fees() {
+  const epoch = identityEpoch;
   const result = await request("/fees");
+  if (epoch !== identityEpoch) return;
   $("#creator-fee-balance")!.textContent = sol(result.unclaimedLamports);
   feedback(
     "#fee-note",
@@ -520,6 +584,7 @@ async function subscriptions() {
   }
   const box = $("#subscriptions-results");
   if (!box) return;
+  const epoch = identityEpoch;
   box.innerHTML =
     '<p class="notice" role="status">Checking your token balances on Solana…</p>';
   try {
@@ -530,6 +595,7 @@ async function subscriptions() {
           return r.json();
         })
       : { records: [] };
+    if (epoch !== identityEpoch) return;
     const creators = new Map<string, Channel>(
       result.channels.map((c: Channel) => [c.wallet, c]),
     );
@@ -538,6 +604,7 @@ async function subscriptions() {
       ? `<p class="field-help">Verified from your current wallet holdings. Updated ${e(new Date(result.checkedAt * 1000).toLocaleTimeString())}.</p><div class="creator-card-grid">${result.channels.map(channelCard).join("")}</div><section class="section-space"><h2>From your creators<span class="accent">.</span></h2>${records.length ? `<div class="grid">${records.map((r: any) => `<a class="card video-card" href="/watch/${e(r.arweaveTx)}/"><div class="thumb"><span class="thumb-play">▶</span></div><div class="meta"><span class="badge published">Preserved</span><h3>${e(r.title)}</h3><p>${e(creators.get(r.creator)?.display_name)}</p></div></a>`).join("")}</div>` : '<div class="empty-state"><h3>Their next record will appear here.</h3><p>Your creators have no preserved videos yet. Every published record stays free to watch.</p></div>'}</section>`
       : '<div class="channel-invitation"><div class="identity-shapes" aria-hidden="true"><span>♡</span><span>↗</span></div><h2>Your next favorite is out there.</h2><p>No published Nikki creator tokens were found in this wallet. Explore channels and discover work you want to support.</p><a class="btn btn-primary" href="/creators/">Find creators ↗</a></div>';
   } catch (err) {
+    if (epoch !== identityEpoch) return;
     box.innerHTML = `<div class="error" role="alert">${e(err instanceof Error ? err.message : "Holdings could not be checked.")}</div>`;
   }
 }
@@ -561,7 +628,7 @@ async function publicChannel() {
     });
     records = archive.records.filter((r: any) => r.creator === channel.wallet);
     document.title = channel.display_name + " — Nikki";
-    box.innerHTML = `<a class="eyebrow text-link" href="/creators/">← All creators</a><header class="public-channel-header tone-${tone(channel.accent)}"><div class="public-channel-cover"><span>${e(channel.category)} / PERMANENT RECORDS</span><strong>MAKE IT<br>WORTH KEEPING.</strong><span class="cover-symbol">↗</span></div><div class="public-channel-identity"><div class="channel-avatar">${e(channel.display_name.slice(0, 2).toUpperCase())}</div><div><h1>${e(channel.display_name)}</h1><a class="x-link" href="https://x.com/i/user/${e(channel.x_id)}" target="_blank" rel="noreferrer">𝕏 @${e(channel.x_username)} ✓</a><span class="mono muted">${e(short(channel.wallet))}</span></div><div class="channel-subscribe">${channel.mint ? `<button class="btn btn-primary" id="check-membership" data-handle="${e(handle)}">♡ Check holder status</button><a class="text-link" href="https://pump.fun/coin/${e(channel.mint)}" target="_blank" rel="noreferrer">View $${e(channel.token_symbol)} on pump.fun ↗</a>` : '<span class="badge">CREATOR TOKEN NOT LAUNCHED</span>'}</div></div></header><div class="channel-about-row"><p>${e(channel.bio)}</p><div class="holder-tag">${records.length} PRESERVED ${records.length === 1 ? "VIDEO" : "VIDEOS"}</div></div><p id="membership-status" class="field-help" aria-live="polite">${channel.mint ? "Holding this creator’s token makes you a subscriber. Videos remain free to watch." : "This creator can launch a token when they are ready."}</p><section class="section-space"><div class="section-heading"><h2>The work<span class="accent">.</span></h2><span class="eyebrow muted">PRESERVED FOR EVERYONE</span></div>${records.length ? `<div class="grid">${records.map((r) => `<a class="card video-card" href="/watch/${e(r.arweaveTx)}/"><div class="thumb"><span class="thumb-play">▶</span><span class="thumb-label">${(Number(r.sizeBytes) / 1e6).toFixed(0)} MB</span></div><div class="meta"><span class="badge published">Preserved</span><h3>${e(r.title)}</h3></div></a>`).join("")}</div>` : '<div class="empty-state"><div class="empty-symbol" aria-hidden="true">[ ▶ ]</div><h3>A first record is worth waiting for.</h3><p>This creator has no preserved videos yet. Records appear only after approval and verified permanent storage.</p></div>'}</section>`;
+    box.innerHTML = `<a class="eyebrow text-link" href="/creators/">← All creators</a><header class="public-channel-header tone-${tone(channel.accent)}"><div class="public-channel-cover ${channel.banner_id ? "has-image" : ""}">${channel.banner_id ? `<img src="/api/creators/media/${e(channel.banner_id)}" alt="" width="1200" height="400">` : ""}<span>${e(channel.category)} / PERMANENT RECORDS</span><strong>MAKE IT<br>WORTH KEEPING.</strong><span class="cover-symbol">↗</span></div><div class="public-channel-identity"><div class="channel-avatar">${channel.avatar_id ? `<img src="/api/creators/media/${e(channel.avatar_id)}" alt="" width="400" height="400">` : e(channel.display_name.slice(0, 2).toUpperCase())}</div><div><h1>${e(channel.display_name)}</h1><a class="x-link" href="https://x.com/i/user/${e(channel.x_id)}" target="_blank" rel="noreferrer">𝕏 @${e(channel.x_username)} ✓</a><span class="mono muted">${e(short(channel.wallet))}</span></div><div class="channel-subscribe">${channel.mint ? `<button class="btn btn-primary" id="check-membership" data-handle="${e(handle)}">♡ Check holder status</button><a class="text-link" href="https://pump.fun/coin/${e(channel.mint)}" target="_blank" rel="noreferrer">View $${e(channel.token_symbol)} on pump.fun ↗</a>` : '<span class="badge">CREATOR TOKEN NOT LAUNCHED</span>'}</div></div></header><div class="channel-about-row"><p>${e(channel.bio)}</p><div class="holder-tag">${records.length} PRESERVED ${records.length === 1 ? "VIDEO" : "VIDEOS"}</div></div><p id="membership-status" class="field-help" aria-live="polite">${channel.mint ? "Holding this creator’s token makes you a subscriber. Videos remain free to watch." : "This creator can launch a token when they are ready."}</p><div class="channel-actions"><button class="btn" data-share-url="https://nikki.run/c/${e(handle)}/">Share channel ↗</button><button class="btn" data-copy="https://nikki.run/c/${e(handle)}/">Copy link</button><a class="text-link" href="/help/?channel=${e(handle)}">Report or get help</a></div>${channel.mint ? `<details class="token-proof"><summary>Check the creator token</summary><p>This mint was checked against its confirmed pump.fun launch and creator wallet. X pairing confirms account control, not content accuracy or token value.</p><dl class="record-details"><dt>TOKEN MINT</dt><dd class="mono">${e(channel.mint)}</dd><dt>CREATOR & FEE RECIPIENT</dt><dd class="mono">${e(channel.wallet)}</dd></dl><div class="btn-row"><button class="btn btn-small" data-copy="${e(channel.mint)}">Copy mint</button><a class="btn btn-small" href="https://solscan.io/token/${e(channel.mint)}" target="_blank" rel="noreferrer">Check on Solana ↗</a></div></details>` : ""}<section class="section-space"><div class="section-heading"><h2>The work<span class="accent">.</span></h2><span class="eyebrow muted">PRESERVED FOR EVERYONE</span></div>${records.length ? `<div class="grid">${records.map((r) => `<a class="card video-card" href="/watch/${e(r.arweaveTx)}/"><div class="thumb"><span class="thumb-play">▶</span><span class="thumb-label">${(Number(r.sizeBytes) / 1e6).toFixed(0)} MB</span></div><div class="meta"><span class="badge published">Preserved</span><h3>${e(r.title)}</h3></div></a>`).join("")}</div>` : '<div class="empty-state"><div class="empty-symbol" aria-hidden="true">[ ▶ ]</div><h3>A first record is worth waiting for.</h3><p>This creator has no preserved videos yet. Records appear only after approval and verified permanent storage.</p></div>'}</section>`;
   } catch (err) {
     box.innerHTML = `<div class="empty-state"><h1>This channel isn’t available yet.</h1><p>${e(err instanceof Error ? err.message : "")}</p><a class="btn" href="/creators/">Discover creators →</a></div>`;
   }
@@ -572,6 +639,8 @@ function motion() {
     if (localStorage.getItem("nikki-motion") === "off") enabled = false;
   } catch {}
   document.documentElement.dataset.motion = enabled ? "on" : "off";
+  const menu = $("[data-toggle-motion]");
+  if (menu) menu.textContent = enabled ? "Turn motion off" : "Turn motion on";
   const button = $("#motion-toggle");
   if (button) {
     button.textContent = "Motion: " + (enabled ? "on" : "off");
@@ -583,6 +652,20 @@ document.addEventListener("click", (event) => {
     "button,a",
   );
   if (!element) return;
+  if (element.matches("[data-open-menu]"))
+    $<HTMLDialogElement>("#app-menu")?.showModal();
+  if (element.matches("[data-toggle-motion]")) {
+    document.querySelector<HTMLButtonElement>("#motion-toggle")?.click();
+    element.textContent =
+      document.documentElement.dataset.motion === "on"
+        ? "Turn motion off"
+        : "Turn motion on";
+  }
+  if (element.id === "more-creators")
+    void action(element as HTMLButtonElement, async () => {
+      await directory(true);
+    });
+  if (element.id === "retry-creators") void directory();
   if (element.matches("[data-connect]")) {
     event.preventDefault();
     walletDialog();
@@ -591,6 +674,16 @@ document.addEventListener("click", (event) => {
     void action(element as HTMLButtonElement, () =>
       connect(element.dataset.wallet!),
     );
+  if (element.id === "link-x" && config.xEnabled) {
+    const form = $<HTMLFormElement>("#channel-form");
+    if (form && me.user)
+      try {
+        sessionStorage.setItem(
+          "nikki-channel-draft:" + me.user.wallet,
+          JSON.stringify(Object.fromEntries(new FormData(form))),
+        );
+      } catch {}
+  }
   if (element.id === "link-x" && !config.xEnabled) {
     event.preventDefault();
     toast(
@@ -630,7 +723,9 @@ document.addEventListener("click", (event) => {
         walletDialog();
         return;
       }
+      const epoch = identityEpoch;
       const result = await request("/membership/" + element.dataset.handle);
+      if (epoch !== identityEpoch) return;
       feedback(
         "#membership-status",
         result.subscribed
@@ -646,6 +741,8 @@ document.addEventListener("click", (event) => {
     document.documentElement.dataset.motion = on ? "on" : "off";
     element.textContent = "Motion: " + (on ? "on" : "off");
     element.setAttribute("aria-pressed", String(on));
+    const menu = $("[data-toggle-motion]");
+    if (menu) menu.textContent = on ? "Turn motion off" : "Turn motion on";
     try {
       localStorage.setItem("nikki-motion", on ? "on" : "off");
     } catch {}
@@ -673,9 +770,20 @@ $("#channel-form")?.addEventListener("input", preview);
 let searchTimer: ReturnType<typeof setTimeout>;
 $("#creator-search")?.addEventListener("input", () => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(directory, 250);
+  searchTimer = setTimeout(() => void directory(), 250);
+});
+const experience = startExperience({
+  request,
+  getMe: () => me,
+  getConfig: () => config,
+  refreshMe,
+  toast,
+  connect: walletDialog,
 });
 motion();
+addEventListener("pageshow", (event) => {
+  if (event.persisted) void refreshMe().catch(() => {});
+});
 function registerCreatorSearch() {
   const context = (
     document as Document & {
@@ -762,6 +870,24 @@ void (async () => {
         : Promise.resolve(),
     ]);
     const x = new URLSearchParams(location.search).get("x");
+    if (x && me.user && $("#channel-form"))
+      try {
+        const key = "nikki-channel-draft:" + me.user.wallet,
+          saved = sessionStorage.getItem(key);
+        if (saved) {
+          const draft = JSON.parse(saved),
+            form = $<HTMLFormElement>("#channel-form")!;
+          for (const name of ["displayName", "bio", "category"]) {
+            const field = form.elements.namedItem(name) as HTMLInputElement;
+            if (field && typeof draft[name] === "string")
+              field.value = draft[name];
+          }
+          if (!me.profile && typeof draft.handle === "string")
+            $<HTMLInputElement>("#channel-handle")!.value = draft.handle;
+          sessionStorage.removeItem(key);
+          preview();
+        }
+      } catch {}
     if (x === "connected")
       toast("X paired. Your channel has a face behind the wallet. ✓");
     if (x === "cancelled")

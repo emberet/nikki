@@ -57,3 +57,6 @@ test-mod.json
 .wrangler/
 .dev.vars*
 .creator-secrets*
+
+# Private database exports
+.backups/

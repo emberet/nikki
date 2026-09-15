@@ -40,7 +40,7 @@ Permanent storage has not been exercised with a real video yet. If preservation 
 
 ## Validation
 
-- Production Next build; 21 unit tests and 28 isolated integration checks passed.
+- Production Next build; 27 unit/security tests and 28 isolated integration checks passed.
 - Signature-aware public export tests, founder wallet gating, bounded request bodies.
 - Export inspected for private files, broken internal links, inline scripts, and fabricated records.
 - Deployed Pages routes return 200; unknown route returns 404; CSP and `nosniff` headers are present.
@@ -49,3 +49,7 @@ Permanent storage has not been exercised with a real video yet. If preservation 
 ## Next community release
 
 Do not enable public submissions or payments merely because the static site is live. The NIKKI token, complete RPC snapshot support, hosted upload storage and worker, payment-attempt coordination across tabs, live storage acceptance, and operational recovery still require the later release work described in `OPERATIONS.md`.
+
+## Application release upgrade
+
+Mobile bottom navigation, focused studio panels, channel artwork/sharing, a wallet-backed saved-video library, support requests, owner transaction history and founder operations are included in the new release. R2 stores mutable channel images; D1 stores their ownership, library state and private support/audit records. Founder controls can pause new token transactions without changing archived videos. See `CREATORS.md` for quotas, caching, backup verification and remaining real-wallet/video acceptance checks.

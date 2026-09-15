@@ -1,6 +1,6 @@
 # Public creator platform
 
-**Rollout status:** Live on Cloudflare Pages as of 15 September 2026. X and dedicated mainnet RPC secrets are configured, D1 migrations are applied, and creator token transactions are enabled. Production HTTP checks passed for wallet signatures/sessions, live SPL/Token-2022 holder lookups, and the X authorization redirect. Deployment: `36642dd1.nikki-run.pages.dev`, code commit `8f7b01f`.
+**Rollout status:** The public creator platform is hosted at `nikki.run` on Cloudflare Pages. X and dedicated mainnet RPC secrets are configured, D1 migrations 0001/0002 are applied, R2 channel-image storage is connected, and creator token transactions are enabled. Public uploads and NIKKI voting remain closed. See the release upgrade and validation boundaries below.
 
 ## Scope
 
@@ -57,3 +57,20 @@ Set `TOKEN_LAUNCH_ENABLED=false` and redeploy to pause new prepared/submitted tr
 Automated tests use generated keys, SQLite-backed D1 fixtures, mocked X/RPC responses and real SDK instruction builders. They cover signature replay/browser binding, origin checks, profile publication/ownership, X state/session binding, exact integer holdings, transaction substitution/signature rejection, persisted-signature recovery, expiry, competing draft actions, and native fee instruction selection. Local Wrangler and production HTTP checks verified real Workers startup, wallet login/logout, private draft persistence locally, live holder lookups, X authorization redirect settings, static routes and 404s. The temporary production test wallet had no public profile or transaction and was removed after validation.
 
 No funded launch, trading, fee claim, real video preservation or real-user X OAuth round trip was performed by automated deployment. An unsigned mainnet launch simulation exercised the insufficient-SOL refusal; no transaction was broadcast. No browser interaction/visual QA was requested or performed. The optional WebMCP creator-search surface is feature-detected; a supported validation context was unavailable, so its browser contract is not claimed as verified.
+
+## Release experience upgrade
+
+- Dedicated mobile bottom navigation and studio sections; safe-area spacing, touch targets, bottom-sheet dialogs, reduced motion and native share/copy fallbacks. Missing mobile wallet injection offers the official Phantom/Solflare browser handoff. X verification remains bound to the originating session; a failed callback explains how to return to the correct browser.
+- `/library/` stores saved records and playback positions in D1 per authenticated wallet. Only IDs from the verified static archive are accepted. Progress writes are throttled and serialized; removing a library item clears its saved state and position. The 500-item limit is enforced atomically.
+- `/help/` supports wallet-private requests and founder replies. Requests are bounded and limited to five per wallet/day. Target channel wallet/mint is captured at submission. Reports never delete archived video.
+- `/ops/` requires the exact server `FOUNDER_WALLET`, never a client role or X username. It shows private support, recent transactions, an audit trail, service checks, image capacity, and a persistent transaction pause switch. It checks existing transactions without creating or signing new ones. A missing original receipt still needs a separately verified operator recovery procedure; the status button does not attach or infer a signature.
+- Studio Activity pages through owner-only transaction receipts. Signing payloads and session/OAuth data are excluded.
+- R2 binding `CREATOR_MEDIA` uses `nikki-creator-media`. Uploaded channel artwork is separate from token metadata/monograms. Uploads require a saved channel and paired X identity. The browser crops/resizes to JPEG; the Worker bounds streams and checks JPEG dimensions. Caps: avatar 128 KB/512 px, cover 384 KB/1600 px, 2 MB per wallet including pending images, 64 MB total. Per-wallet, X-identity and IP limits protect upload capacity. Replaced artwork is reclaimed; incomplete uploads expire after an hour. Private drafts require ownership; public artwork has a 60-second browser/edge cache, so already downloaded public images are not retroactively private.
+- Public directory responses use canonical query keys and a 15-second edge cache. Successful holder results use an internal 20-second cache while browser responses remain `no-store`. Single-channel checks query only that mint. The general public-read limiter is an inexpensive, per-Worker-instance barrier, not a globally exact quota or substitute for Cloudflare attack protection. Mutations and expensive RPC actions keep atomic D1 limits.
+- Search uses literal `instr` matches to avoid D1's small LIKE-pattern limit. Discovery has working pagination and retry states.
+
+### Backups
+
+Run `node scripts/backup-creators.mjs` before schema changes. It exports the remote D1 database into ignored `.backups/creators/` with mode 0600, restores the SQL into an isolated in-memory database, and checks integrity and foreign keys. Export files contain private account/support/session data: keep them private. This validates a D1 export; it does not back up R2 objects or replace Arweave verification. Keep a separate secure copy of required backup files for machine-loss recovery.
+
+The upgrade passed 27 unit/security tests and the existing 28 integration checks, TypeScript and both application builds. The remote pre-migration database export also passed an isolated restore check. First-video captions, chapters, real playback delivery, funded creator transactions, and actual mobile-wallet/X return journeys still need the user's content/devices; no real completion is claimed for those flows.
