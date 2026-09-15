@@ -308,7 +308,6 @@ function renderStudio() {
       displayName: me.profile.display_name,
       handle: me.profile.handle,
       bio: me.profile.bio,
-      category: me.profile.category,
     })) {
       const input = form.elements.namedItem(name) as HTMLInputElement;
       if (input) input.value = String(value);
@@ -359,7 +358,7 @@ async function saveChannel(publish: boolean) {
       handle: data.get("handle"),
       displayName: data.get("displayName"),
       bio: data.get("bio"),
-      category: data.get("category"),
+      category: me.profile?.category || "Knowledge",
       accent: data.get("accent"),
       published: publish || !!me.profile?.published,
     });
@@ -877,7 +876,7 @@ void (async () => {
         if (saved) {
           const draft = JSON.parse(saved),
             form = $<HTMLFormElement>("#channel-form")!;
-          for (const name of ["displayName", "bio", "category"]) {
+          for (const name of ["displayName", "bio"]) {
             const field = form.elements.namedItem(name) as HTMLInputElement;
             if (field && typeof draft[name] === "string")
               field.value = draft[name];
