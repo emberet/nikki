@@ -1,5 +1,4 @@
 import { releaseApi, transactionsPaused } from "./release";
-import { nikkiChat } from "./nikki-chat";
 import { mediaApi, cleanupMedia } from "./media";
 import { cachedHoldings, edgeCache, publicCacheKey, limitRead } from "./cache";
 import { PublicKey } from "@solana/web3.js";
@@ -59,7 +58,6 @@ async function api(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url),
     route =
       url.pathname.replace(/^\/api\/creators/, "").replace(/\/$/, "") || "/";
-  if (route === "/nikki-chat") return nikkiChat(req, env);
   if (route === "/config")
     return json({
       accountsEnabled: !!env.CREATORS_DB,

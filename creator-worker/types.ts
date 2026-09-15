@@ -17,18 +17,6 @@ export interface Env {
   X_CLIENT_SECRET?: string;
   TOKEN_LAUNCH_ENABLED?: string;
   FOUNDER_WALLET?: string;
-  NIKKI_CHAT_ENABLED?: string;
-  AI?: {
-    run(
-      model: string,
-      input: {
-        messages: { role: "system" | "user" | "assistant"; content: string }[];
-        max_tokens: number;
-        temperature: number;
-        seed: number;
-      },
-    ): Promise<{ response?: string }>;
-  };
   CREATOR_MEDIA?: {
     put(
       key: string,
