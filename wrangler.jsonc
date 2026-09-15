@@ -2,6 +2,7 @@
   "name": "nikki-run",
   "pages_build_output_dir": "./dist-public",
   "compatibility_date": "2026-09-15",
+  "ai": { "binding": "AI" },
   "d1_databases": [
     {
       "binding": "CREATORS_DB",
@@ -16,6 +17,7 @@
   "vars": {
     "PUBLIC_ORIGIN": "https://nikki.run",
     "TOKEN_LAUNCH_ENABLED": "true",
+    "NIKKI_CHAT_ENABLED": "true",
     "FOUNDER_WALLET": "FcRL7KJYC1h1HLMbwZELZftxkZFAg4v5cgAKNqfFfiUC",
   },
 }

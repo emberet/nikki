@@ -6,6 +6,8 @@ A neo-brutalist video archive for preserving human history and knowledge.
 
 ## Public release
 
+The landing mascot supports generated chat and fresh thoughts through Workers AI. See [Nikki chat operations](docs/NIKKI_CHAT.md) for privacy, model configuration and budget limits.
+
 Run `npm run build:public` to export the verified founder archive to `dist-public/`. Deploy **only that directory** with `npx wrangler pages deploy dist-public --project-name nikki-run --branch main`. The public APIs use an advanced-mode Worker and a separate D1 database; apply their migrations and configure secrets first, as described in [creator operations](docs/CREATORS.md). The export validates founder signatures, omits all private records and server files, and creates watch pages only for records already marked published after storage verification. See [release operations](docs/PUBLIC_RELEASE.md).
 
 ## Run locally
