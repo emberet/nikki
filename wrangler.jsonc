@@ -12,6 +12,6 @@
   ],
   "vars": {
     "PUBLIC_ORIGIN": "https://nikki.run",
-    "TOKEN_LAUNCH_ENABLED": "false",
+    "TOKEN_LAUNCH_ENABLED": "true",
   },
 }
