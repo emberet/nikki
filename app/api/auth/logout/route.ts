@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-
-export async function POST() {
+import { api, sameOrigin, json } from "@/lib/http";
+export const POST = api(async (req) => {
+  sameOrigin(req);
   const session = await getSession();
   session.destroy();
-  return NextResponse.json({ ok: true });
-}
+  return json({ ok: true });
+});

@@ -1,26 +1,45 @@
-import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireMod } from "@/lib/session";
-
-export async function GET() {
-  try {
-    await requireMod();
-  } catch {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
-  const reviews = await db.review.findMany({
-    include: { mod: true, video: true },
-    orderBy: { createdAt: "desc" },
-    take: 200,
+import { api, json } from "@/lib/http";
+export const dynamic = "force-dynamic";
+export const GET = api(async () => {
+  const videos = await db.video.findMany({
+    where: { status: "published" },
+    include: {
+      founderRecord: true,
+      ballots: {
+        select: {
+          wallet: true,
+          choice: true,
+          reason: true,
+          signature: true,
+          message: true,
+          xUsername: true,
+          updatedAt: true,
+        },
+      },
+    },
+    take: 100,
+    orderBy: { publishedAt: "desc" },
   });
-  return NextResponse.json(
-    reviews.map((r) => ({
-      id: r.id,
-      video: { id: r.video.id, title: r.video.title, arweaveTx: r.video.arweaveTx },
-      mod: r.mod.wallet,
-      decision: r.decision,
-      reason: r.reason,
-      createdAt: r.createdAt,
-    }))
+  return json(
+    videos.map((v) => ({
+      id: v.id,
+      publicationMethod: v.publicationMethod,
+      founderApproval: v.founderRecord
+        ? {
+            wallet: v.founderRecord.wallet,
+            message: v.founderRecord.message,
+            signature: v.founderRecord.signature,
+          }
+        : null,
+      title: v.title,
+      arweaveTx: v.arweaveTx,
+      recordTx: v.recordTx,
+      sha256: v.sha256,
+      snapshotHash: v.snapshotHash,
+      snapshotSlot: v.snapshotSlot?.toString(),
+      voteClosesAt: v.voteClosesAt,
+      ballots: v.ballots,
+    })),
   );
-}
+});

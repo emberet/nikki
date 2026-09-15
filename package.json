@@ -3,14 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1 --port 4900",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "test": "tsx --test tests/*.test.ts",
+    "test:integration": "node scripts/e2e.mjs",
+    "db:migrate": "prisma migrate deploy",
+    "typecheck": "tsc --noEmit",
+    "worker": "node --env-file-if-exists=.env --import tsx scripts/preservation-worker.ts",
+    "start:production": "node --env-file-if-exists=.env scripts/start-production.mjs",
+    "format:check": "prettier --check app components lib scripts tests docs README.md package.json next.config.mjs",
+    "storage:reconcile": "node --env-file-if-exists=.env --import tsx scripts/reconcile-storage.ts",
+    "db:backup": "node --env-file-if-exists=.env scripts/backup-db.mjs",
+    "build:public": "node --env-file-if-exists=.env --import tsx scripts/build-public.ts"
   },
   "dependencies": {
-    "@irys/upload": "^0.0.15",
-    "@irys/upload-solana": "^0.1.8",
+    "@ardrive/turbo-sdk": "^1.43.0",
     "@prisma/client": "^6.19.3",
     "@solana/spl-token": "^0.4.15",
     "@solana/wallet-adapter-phantom": "^0.9.30",
@@ -20,16 +28,26 @@
     "@solana/web3.js": "^1.99.0",
     "bs58": "^6.0.0",
     "iron-session": "^9.0.1",
-    "next": "14.2.35",
+    "next": "^15.5.25",
     "prisma": "^6.19.3",
-    "react": "^18",
-    "react-dom": "^18",
-    "tweetnacl": "^1.0.3"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tsx": "^4.23.13",
+    "tweetnacl": "^1.0.3",
+    "ws": "8.21.3"
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "prettier": "^3.9.6",
     "typescript": "^5"
+  },
+  "overrides": {
+    "elliptic": "6.6.1",
+    "secp256k1": "5.0.2",
+    "ws@^7": "7.5.13",
+    "postcss": "8.5.28",
+    "ws": "8.21.3"
   }
 }

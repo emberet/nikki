@@ -1,10 +1,12 @@
-import { NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
-
-export async function GET() {
-  const session = await getSession();
-  if (!session.userId) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  return NextResponse.json({ wallet: session.wallet, role: session.role });
-}
+import { requireUser } from "@/lib/session";
+import { api, json } from "@/lib/http";
+export const dynamic = "force-dynamic";
+export const GET = api(async () => {
+  const { user } = await requireUser();
+  return json({
+    wallet: user.wallet,
+    xUsername: user.xUsername,
+    xLinked: !!user.xId,
+    role: user.xId ? "moderator" : "creator",
+  });
+});

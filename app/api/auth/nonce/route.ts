@@ -1,10 +1,27 @@
-import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import { randomBytes } from "crypto";
 import { getSession } from "@/lib/session";
-
-export async function GET() {
+import { db } from "@/lib/db";
+import { api, appOrigin, json } from "@/lib/http";
+export const dynamic = "force-dynamic";
+export const GET = api(async (req) => {
+  await rateLimit("auth-challenge", "global", 180);
   const session = await getSession();
-  session.nonce = randomBytes(16).toString("hex");
+  if (session.challengeId)
+    await db.authChallenge.deleteMany({ where: { id: session.challengeId } });
+  const nonce = randomBytes(24).toString("hex"),
+    expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  const message =
+    "Sign in to Nikki\nOrigin: " +
+    appOrigin(req) +
+    "\nNonce: " +
+    nonce +
+    "\nExpires: " +
+    expiresAt.toISOString();
+  const challenge = await db.authChallenge.create({
+    data: { message, expiresAt },
+  });
+  session.challengeId = challenge.id;
   await session.save();
-  return NextResponse.json({ nonce: session.nonce });
-}
+  return json({ message });
+});

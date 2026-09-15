@@ -4,51 +4,84 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
-  wallet    String   @unique
-  role      String   @default("creator") // creator | mod | admin
-  createdAt DateTime @default(now())
+  id        String        @id @default(cuid())
+  wallet    String        @unique
+  xId       String?
+  xUsername String?
+  xLinkedAt DateTime?
+  role      String        @default("creator") // creator | mod | admin
+  createdAt DateTime      @default(now())
   videos    Video[]
   reviews   Review[]
   rewards   RewardEntry[]
 }
 
 model Video {
-  id          String   @id @default(cuid())
-  title       String
-  description String   @default("")
-  creatorId   String
-  creator     User     @relation(fields: [creatorId], references: [id])
-  // uploading -> awaiting_payment -> in_review -> approved | rejected
-  status      String   @default("uploading")
-  sizeBytes   BigInt   @default(0)
-  sha256      String?
-  mimeType    String   @default("video/mp4")
-  filePath    String? // held storage path, null after publish/reject
-  arweaveTx   String?  @unique
-  thumbPath   String?
-  createdAt   DateTime @default(now())
-  publishedAt DateTime?
-  payment     Payment?
-  review      Review?
+  id                String          @id @default(cuid())
+  title             String
+  description       String          @default("")
+  creatorId         String
+  creator           User            @relation(fields: [creatorId], references: [id])
+  category          String          @default("Knowledge")
+  recordedAt        String?
+  language          String          @default("English")
+  source            String          @default("")
+  expectedBytes     BigInt          @default(0)
+  voteOpensAt       DateTime?
+  voteClosesAt      DateTime?
+  snapshotSlot      BigInt?
+  snapshotHash      String?
+  snapshotMint      String?
+  snapshotDecimals  Int?
+  finalizedAt       DateTime?
+  yesCount          Int             @default(0)
+  noCount           Int             @default(0)
+  publicationError  String?
+  publishClaimedAt  DateTime?
+  storageReceipt    String?
+  recordTx          String?         @unique
+  archiveJson       String?
+  storageQuotes     StorageQuote[]
+  publicationMethod String          @default("community")
+  founderRecord     FounderRecord?
+  eligibleVoters    EligibleVoter[]
+  ballots           Ballot[]
+  uploadLock        String?
+  // uploading -> snapshot_pending -> voting -> approved -> payment_received -> publishing -> published
+  status            String          @default("uploading")
+  sizeBytes         BigInt          @default(0)
+  sha256            String?
+  mimeType          String          @default("video/mp4")
+  filePath          String? // held storage path, null after publish/reject
+  arweaveTx         String?         @unique
+  thumbPath         String?
+  createdAt         DateTime        @default(now())
+  publishedAt       DateTime?
+  payment           Payment?
+  review            Review?
 }
 
 model Payment {
-  id            String   @id @default(cuid())
-  videoId       String   @unique
-  video         Video    @relation(fields: [videoId], references: [id])
-  currency      String // SOL | TOKEN
+  id             String    @id @default(cuid())
+  videoId        String    @unique
+  video          Video     @relation(fields: [videoId], references: [id])
+  currency       String // SOL | TOKEN
   amountLamports BigInt // amount in base units (lamports or token base units)
   quoteLamports  BigInt
-  txSignature   String?  @unique
-  payerWallet   String
-  status        String   @default("pending") // pending | verified | refunded
-  refundTx      String?
-  createdAt     DateTime @default(now())
+  txSignature    String?   @unique
+  payerWallet    String
+  status         String    @default("pending") // pending | verified | refunded
+  recipient      String    @default("")
+  reference      String    @default("")
+  expiresAt      DateTime?
+  confirmedAt    DateTime?
+  fileSha256     String    @default("")
+  refundTx       String?
+  createdAt      DateTime  @default(now())
 }
 
 model Review {
@@ -70,4 +103,80 @@ model RewardEntry {
   reason    String // e.g. review:<videoId>
   paidTx    String?
   createdAt DateTime @default(now())
+}
+
+model AuthChallenge {
+  id        String   @id @default(cuid())
+  message   String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+
+  @@index([expiresAt])
+}
+
+model EligibleVoter {
+  id        String @id @default(cuid())
+  videoId   String
+  video     Video  @relation(fields: [videoId], references: [id])
+  wallet    String
+  amount    String
+  xId       String
+  xUsername String
+
+  @@unique([videoId, wallet])
+}
+
+model Ballot {
+  id        String   @id @default(cuid())
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id])
+  wallet    String
+  xId       String
+  xUsername String
+  choice    String
+  reason    String   @default("")
+  signature String
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([videoId, wallet])
+  @@index([videoId, choice])
+}
+
+model StorageQuote {
+  reference     String   @id
+  videoId       String
+  video         Video    @relation(fields: [videoId], references: [id])
+  quoteLamports BigInt
+  recipient     String
+  fileSha256    String
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+
+  @@index([videoId])
+}
+
+model RateBucket {
+  id        String   @id
+  count     Int      @default(1)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model FounderRecord {
+  id        String   @id
+  videoId   String   @unique
+  video     Video    @relation(fields: [videoId], references: [id])
+  wallet    String
+  message   String
+  signature String
+  createdAt DateTime @default(now())
+}
+
+model RuntimeState {
+  id        String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

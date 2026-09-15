@@ -1,38 +1,60 @@
-import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
-import { getSession, modWallets } from "@/lib/session";
+import { PublicKey } from "@solana/web3.js";
+import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
-
-export async function POST(req: Request) {
-  const { wallet, signature } = await req.json();
-  const session = await getSession();
-  if (!session.nonce) {
-    return NextResponse.json({ error: "no nonce" }, { status: 400 });
-  }
-  const message = new TextEncoder().encode(
-    `Sign in to Nikki\nNonce: ${session.nonce}`
-  );
-  const ok = nacl.sign.detached.verify(
-    message,
-    bs58.decode(signature),
-    bs58.decode(wallet)
-  );
-  if (!ok) {
-    return NextResponse.json({ error: "bad signature" }, { status: 401 });
-  }
-
-  const role = modWallets().includes(wallet) ? "mod" : "creator";
-  const user = await db.user.upsert({
-    where: { wallet },
-    update: { role },
-    create: { wallet, role },
+import { api, sameOrigin, jsonBody, HttpError, json } from "@/lib/http";
+export const POST = api(async (req) => {
+  sameOrigin(req);
+  await rateLimit("auth-verify", "global", 180);
+  const { wallet, signature } = await jsonBody(req),
+    session = await getSession();
+  if (
+    typeof wallet !== "string" ||
+    typeof signature !== "string" ||
+    signature.length > 100
+  )
+    throw new HttpError(400, "Invalid wallet signature.");
+  const challenge = session.challengeId
+    ? await db.authChallenge.findUnique({ where: { id: session.challengeId } })
+    : null;
+  if (
+    !challenge ||
+    challenge.used ||
+    challenge.expiresAt.getTime() <= Date.now()
+  )
+    throw new HttpError(401, "Sign-in request expired. Please try again.");
+  let ok = false;
+  try {
+    const pub = new PublicKey(wallet);
+    ok = nacl.sign.detached.verify(
+      new TextEncoder().encode(challenge.message),
+      bs58.decode(signature),
+      pub.toBytes(),
+    );
+  } catch {}
+  if (!ok) throw new HttpError(401, "Wallet signature could not be verified.");
+  const user = await db.$transaction(async (tx) => {
+    const claim = await tx.authChallenge.updateMany({
+      where: { id: challenge.id, used: false, expiresAt: { gt: new Date() } },
+      data: { used: true },
+    });
+    if (claim.count !== 1)
+      throw new HttpError(401, "Sign-in request already used.");
+    return tx.user.upsert({
+      where: { wallet },
+      update: { role: "creator" },
+      create: { wallet, role: "creator" },
+    });
   });
-
   session.wallet = wallet;
   session.userId = user.id;
-  session.role = user.role;
-  session.nonce = undefined;
+  session.challengeId = undefined;
+  session.xState = undefined;
+  session.xVerifier = undefined;
+  session.xWallet = undefined;
+  session.xChallengeId = undefined;
   await session.save();
-  return NextResponse.json({ ok: true, role: user.role });
-}
+  return json({ ok: true });
+});

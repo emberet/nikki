@@ -40,3 +40,15 @@ held/
 .env
 test-creator.json
 test-mod.json
+
+.next-dev/
+.next-test/
+.env.*
+!.env.example
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Public deployment output
+/dist-public/
+/releases/

@@ -1,155 +1,379 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import bs58 from "bs58";
 import SignInButton, { useAuth } from "@/components/SignInButton";
-
-type QueueItem = {
+import { post, sizeLabel, timeLeft, shortWallet } from "@/lib/client";
+import { statusLabel } from "@/lib/rules";
+type Proposal = {
   id: string;
   title: string;
   description: string;
+  category: string;
   creator: string;
   sizeBytes: string;
   sha256: string;
-  paid: boolean;
-  currency?: string;
-  createdAt: string;
+  status: string;
+  voteClosesAt: string;
+  snapshotSlot: string;
+  yes: number;
+  no: number;
+  canVote: boolean;
+  myVote: string | null;
 };
-
-type AuditRow = {
-  id: string;
-  video: { id: string; title: string; arweaveTx: string | null };
-  mod: string;
-  decision: string;
-  reason: string;
-  createdAt: string;
-};
-
-export default function ModPortal() {
-  const { me, loaded, refresh } = useAuth();
-  const [queue, setQueue] = useState<QueueItem[] | null>(null);
-  const [audit, setAudit] = useState<AuditRow[]>([]);
-  const [active, setActive] = useState<QueueItem | null>(null);
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-
+export default function Review() {
+  const { me, loaded } = useAuth(),
+    { publicKey, signMessage } = useWallet();
+  const [queue, setQueue] = useState<Proposal[]>([]),
+    [active, setActive] = useState<string | null>(null),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false),
+    [reason, setReason] = useState(""),
+    [attest, setAttest] = useState(false),
+    [xReady, setXReady] = useState(false),
+    [ready, setReady] = useState(false),
+    [filter, setFilter] = useState("Open votes"),
+    [now, setNow] = useState(Date.now());
   const load = useCallback(async () => {
-    const [q, a] = await Promise.all([fetch("/api/mod/queue"), fetch("/api/mod/audit")]);
-    if (q.ok) setQueue(await q.json());
-    else setQueue(null);
-    if (a.ok) setAudit(await a.json());
-  }, []);
-
+    if (!me) return;
+    const r = await fetch("/api/mod/queue");
+    if (r.ok) setQueue(await r.json());
+    else setError("The review queue could not be loaded.");
+  }, [me]);
   useEffect(() => {
-    if (me?.role === "mod" || me?.role === "admin") load();
-  }, [me, load]);
-
-  const decide = async (decision: "approved" | "rejected") => {
-    if (!active) return;
-    if (decision === "approved" && !confirm(
-      `APPROVE "${active.title}"?\n\nThis pushes the file to Arweave PERMANENTLY. It can never be deleted by anyone. Are you sure?`
-    )) return;
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((c) => {
+        setXReady(c.xConfigured);
+        setReady(c.votingConfigured);
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    load().catch(() => setError("The queue is unavailable."));
+    const t = setInterval(() => {
+      setNow(Date.now());
+      load().catch(() => {});
+    }, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+  const chosen = queue.find((v) => v.id === active);
+  const vote = async (choice: "yes" | "no") => {
+    if (!chosen || !signMessage || !me || !attest) return;
+    if (publicKey?.toBase58() !== me.wallet) {
+      setError("Connect the wallet linked to your moderator account.");
+      return;
+    }
     setBusy(true);
-    setMsg("");
+    setError("");
+    setNotice("");
     try {
-      const r = await fetch("/api/mod/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId: active.id, decision, reason }),
+      const ballot = await post("/api/voting/message", {
+        videoId: chosen.id,
+        choice,
+        reason,
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error);
-      setMsg(decision === "approved" ? `Published: ${j.arweaveTx}` : `Rejected. Refund: ${j.refundTx || "pending"}`);
-      setActive(null);
-      setReason("");
-      load();
+      const signature = bs58.encode(
+        await signMessage(new TextEncoder().encode(ballot.message)),
+      );
+      await post("/api/voting/ballot", {
+        videoId: chosen.id,
+        choice,
+        reason,
+        signature,
+        issuedAt: ballot.issuedAt,
+      });
+      setNotice(
+        "Your signed vote is recorded. The result is decided when the full 24-hour window closes.",
+      );
+      setAttest(false);
+      await load();
     } catch (e) {
-      setMsg((e as Error).message);
+      setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   };
-
-  if (!loaded) return <main className="container"><p className="muted">Loading…</p></main>;
-  if (!me || (me.role !== "mod" && me.role !== "admin"))
-    return (
-      <main className="container" style={{ maxWidth: 480, textAlign: "center", paddingTop: 80 }}>
-        <h2>Mod portal</h2>
-        <p className="muted">Restricted to reviewer wallets.</p>
-        <SignInButton onAuthed={refresh} />
-      </main>
-    );
-
+  const visible = queue.filter(
+    (v) => filter === "All decisions" || v.status === "voting",
+  );
   return (
     <main className="container">
-      <h2>Review queue {queue && <span className="badge">{queue.length} waiting</span>}</h2>
-      {msg && <p className="mono" style={{ fontSize: 12 }}>{msg}</p>}
-
-      {active ? (
-        <div className="card" style={{ maxWidth: 860 }}>
-          <video controls src={`/api/mod/preview/${active.id}`} />
-          <h3>{active.title}</h3>
-          <p className="muted" style={{ fontSize: 13 }}>{active.description || "(no description)"}</p>
-          <p className="mono muted" style={{ fontSize: 11 }}>
-            creator {active.creator} · {(Number(active.sizeBytes) / 1e6).toFixed(1)} MB · sha256 {active.sha256}
+      <header className="page-header">
+        <div className="eyebrow accent">[ 03 — COMMUNITY REVIEW ]</div>
+        <h1>
+          Decide what endures<span className="accent">.</span>
+        </h1>
+        <p>
+          Review the next contribution to human history. Your vote is your
+          personal approval of a specific record.
+        </p>
+      </header>
+      <div className="rule-grid">
+        <div className="rule-card">
+          <strong>24 hours</strong>
+          <span>Every voice has time to be heard</span>
+        </div>
+        <div className="rule-card">
+          <strong>5 voters</strong>
+          <span>Minimum participation</span>
+        </div>
+        <div className="rule-card">
+          <strong>80% yes</strong>
+          <span>Required for approval</span>
+        </div>
+      </div>
+      {!loaded ? (
+        <div className="loading">Loading moderator access…</div>
+      ) : !me ? (
+        <div className="signin-panel">
+          <div className="eyebrow accent">A community of custodians</div>
+          <h2>Bring your judgment.</h2>
+          <p>
+            Connect a wallet holding more than 10 million NIKKI, then link your
+            X account. Each eligible wallet gets one vote.
           </p>
-          <label>Reason (required for rejection, optional for approval)</label>
-          <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} />
-          <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-            <button className="btn btn-approve" disabled={busy} onClick={() => decide("approved")}>
-              {busy ? "Working…" : "Approve → Arweave (permanent)"}
-            </button>
-            <button className="btn btn-danger" disabled={busy || !reason} onClick={() => decide("rejected")}>
-              Reject + refund
-            </button>
-            <button className="btn" disabled={busy} onClick={() => setActive(null)}>Back</button>
-          </div>
+          <SignInButton />
+          <p className="footnote" style={{ marginTop: 24, marginBottom: 0 }}>
+            Wallet eligibility is fixed when each vote opens.
+          </p>
         </div>
       ) : (
-        <table>
-          <thead>
-            <tr><th>Title</th><th>Creator</th><th>Size</th><th>Paid</th><th>Submitted</th><th></th></tr>
-          </thead>
-          <tbody>
-            {(queue || []).map((v) => (
-              <tr key={v.id}>
-                <td>{v.title}</td>
-                <td className="mono">{v.creator.slice(0, 4)}…{v.creator.slice(-4)}</td>
-                <td>{(Number(v.sizeBytes) / 1e6).toFixed(1)} MB</td>
-                <td>{v.paid ? `✓ ${v.currency}` : "✗"}</td>
-                <td>{new Date(v.createdAt).toLocaleString()}</td>
-                <td><button className="btn" onClick={() => setActive(v)}>Review</button></td>
-              </tr>
-            ))}
-            {queue?.length === 0 && (
-              <tr><td colSpan={6} className="muted">Queue is empty.</td></tr>
-            )}
-          </tbody>
-        </table>
-      )}
-
-      <h2 style={{ marginTop: 40 }}>Audit log</h2>
-      <table>
-        <thead>
-          <tr><th>When</th><th>Video</th><th>Mod</th><th>Decision</th><th>Reason</th></tr>
-        </thead>
-        <tbody>
-          {audit.map((r) => (
-            <tr key={r.id}>
-              <td>{new Date(r.createdAt).toLocaleString()}</td>
-              <td>
-                {r.video.arweaveTx ? (
-                  <a href={`/watch/${r.video.arweaveTx}`}>{r.video.title}</a>
+        <>
+          <section className="notice">
+            <div className="submission-head">
+              <div>
+                <strong>
+                  {me.xLinked
+                    ? "X connected · @" + me.xUsername
+                    : "Link your X account"}
+                </strong>
+                <p style={{ margin: "6px 0 0" }}>
+                  {me.xLinked
+                    ? "Votes are attributed to your linked account. Each proposal uses its opening eligibility snapshot."
+                    : "X sign-in links your approval to an account you control. Link before a vote opens to participate."}
+                </p>
+              </div>
+              {!me.xLinked &&
+                (xReady ? (
+                  <a className="btn" href="/api/auth/x/start">
+                    Connect X ↗
+                  </a>
                 ) : (
-                  r.video.title
+                  <button disabled className="btn">
+                    X connection coming soon
+                  </button>
+                ))}
+            </div>
+          </section>
+          {!ready && (
+            <div className="notice warning" style={{ marginTop: 16 }}>
+              Community voting is awaiting the NIKKI token launch. The 24-hour
+              rule will apply to each live proposal once voting opens.
+            </div>
+          )}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          {notice && (
+            <p className="success" role="status">
+              {notice}
+            </p>
+          )}
+          <div className="toolbar">
+            <div className="filters">
+              {["Open votes", "All decisions"].map((t) => (
+                <button
+                  key={t}
+                  className={"filter " + (filter === t ? "active" : "")}
+                  onClick={() => setFilter(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn btn-small"
+              onClick={() => load().catch(() => setError("Unable to refresh."))}
+            >
+              Refresh ↻
+            </button>
+          </div>
+          {chosen ? (
+            <section className="two-col">
+              <article>
+                <button
+                  className="btn btn-small"
+                  onClick={() => setActive(null)}
+                  style={{ marginBottom: 24 }}
+                >
+                  ← Back to queue
+                </button>
+                <div className="player-frame">
+                  <div className="panel-title">
+                    Private review preview <span>#{chosen.id.slice(-6)}</span>
+                  </div>
+                  <video
+                    key={chosen.id}
+                    controls
+                    preload="metadata"
+                    src={"/api/mod/preview/" + chosen.id}
+                  />
+                </div>
+                <span className={"badge " + chosen.status}>
+                  {statusLabel(chosen.status)}
+                </span>
+                <h2 style={{ marginTop: 20 }}>{chosen.title}</h2>
+                <p>{chosen.description}</p>
+                <p className="mono muted">
+                  By {shortWallet(chosen.creator)} ·{" "}
+                  {sizeLabel(chosen.sizeBytes)} · {chosen.category}
+                </p>
+                <details>
+                  <summary className="muted">Record fingerprint</summary>
+                  <p className="mono">SHA-256: {chosen.sha256}</p>
+                  <p className="mono">
+                    Eligibility slot: {chosen.snapshotSlot}
+                  </p>
+                </details>
+              </article>
+              <aside className="card">
+                <div className="eyebrow accent">
+                  {timeLeft(chosen.voteClosesAt, now)}
+                </div>
+                <h2 style={{ marginTop: 20 }}>Your decision</h2>
+                <div className="vote-bar">
+                  <span
+                    style={{
+                      width:
+                        chosen.yes + chosen.no
+                          ? (chosen.yes / (chosen.yes + chosen.no)) * 100 + "%"
+                          : "0%",
+                    }}
+                  />
+                </div>
+                <div className="vote-summary">
+                  <span>{chosen.yes} approve</span>
+                  <span>{chosen.no} decline</span>
+                </div>
+                <p className="footnote" style={{ marginTop: 16 }}>
+                  {chosen.yes + chosen.no} participating wallets · 5 minimum
+                </p>
+                {chosen.myVote && (
+                  <p className="notice">
+                    Your current vote:{" "}
+                    <strong>
+                      {chosen.myVote === "yes" ? "Approve" : "Decline"}
+                    </strong>
+                    . You can change it before closing.
+                  </p>
                 )}
-              </td>
-              <td className="mono">{r.mod.slice(0, 4)}…{r.mod.slice(-4)}</td>
-              <td><span className={`badge ${r.decision}`}>{r.decision}</span></td>
-              <td className="muted">{r.reason}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                {chosen.canVote && Date.parse(chosen.voteClosesAt) > now ? (
+                  <>
+                    <label htmlFor="reason">Review note (optional)</label>
+                    <textarea
+                      id="reason"
+                      rows={3}
+                      maxLength={500}
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="Explain your decision…"
+                    />
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={attest}
+                        onChange={(e) => setAttest(e.target.checked)}
+                      />
+                      <span>
+                        I have reviewed this video. If published, my wallet, X
+                        account ID and username, review note, and signed vote
+                        will be permanently public with this record.
+                      </span>
+                    </label>
+                    <div className="btn-row">
+                      <button
+                        disabled={!attest || busy}
+                        className="btn btn-approve"
+                        onClick={() => vote("yes")}
+                      >
+                        {busy ? "Signing…" : "Approve ↗"}
+                      </button>
+                      <button
+                        disabled={!attest || busy}
+                        className="btn btn-danger"
+                        onClick={() => vote("no")}
+                      >
+                        Decline
+                      </button>
+                    </div>
+                    <p className="footnote" style={{ marginTop: 24 }}>
+                      Signing records a vote. It does not transfer tokens or
+                      publish the video immediately.
+                    </p>
+                  </>
+                ) : (
+                  <p className="notice">
+                    This vote is closed or your wallet was not eligible at
+                    opening.
+                  </p>
+                )}
+              </aside>
+            </section>
+          ) : !visible.length ? (
+            <div className="empty-state">
+              <div className="empty-symbol">[ ✓ ]</div>
+              <h3>No proposals available to review.</h3>
+              <p>
+                Your queue shows records you submitted and votes where your
+                wallet was eligible at opening.
+              </p>
+            </div>
+          ) : (
+            <div className="grid">
+              {visible.map((v) => (
+                <button
+                  className="card video-card"
+                  style={{ color: "inherit", textAlign: "left" }}
+                  key={v.id}
+                  onClick={() => {
+                    setActive(v.id);
+                    setReason("");
+                    setAttest(false);
+                    setError("");
+                    setNotice("");
+                  }}
+                >
+                  <div className="panel-title">
+                    <span>{v.category}</span>
+                    <span className="accent">↗</span>
+                  </div>
+                  <div className="meta">
+                    <span className={"badge " + v.status}>
+                      {statusLabel(v.status)}
+                    </span>
+                    <h3>{v.title}</h3>
+                    <p className="muted">
+                      {v.description.slice(0, 140)}
+                      {v.description.length > 140 ? "…" : ""}
+                    </p>
+                    <p className="mono">{timeLeft(v.voteClosesAt, now)}</p>
+                    <div className="vote-summary">
+                      <span>
+                        {v.yes} approve / {v.no} decline
+                      </span>
+                      <span>{v.yes + v.no}/5 minimum</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </main>
   );
 }

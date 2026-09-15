@@ -1,0 +1,14 @@
+node_modules
+.next
+.next-dev
+.git
+.env
+.env.*
+held
+*.db
+*.db-*
+*.json.key
+*keypair*
+treasury.json
+test-creator.json
+test-mod.json

@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Nikki
 
-## Getting Started
+A neo-brutalist video archive for preserving human history and knowledge.
 
-First, run the development server:
+**Status: public founding release on Cloudflare Pages.** The public archive starts empty; the founder’s video will be added later. Public uploads, payments, and voting are closed until the later community release. The private Node studio and preservation worker stay on the operator’s machine. No real payment or permanent upload has been made during deployment.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Public release
+
+Run `npm run build:public` to export the verified founder archive to `dist-public/`. Upload **only that directory** (or a ZIP of its contents) to the Cloudflare Pages project `nikki-run`. The export validates founder signatures, omits all private records and server files, and creates watch pages only for records already marked published after storage verification. See [release operations](docs/PUBLIC_RELEASE.md).
+
+## Run locally
+
+Use Node 22.9 or newer (Node 22 LTS is the deployment target).
+
+1. Install packages with `npm ci`.
+2. Copy `.env.example` to `.env` only if you do not already have an environment file. Generate a random session secret of at least 32 characters.
+3. Run `npx prisma generate`, then `npm run db:migrate`. For a brand-new SQLite database, create an empty `prisma/dev.db` file first if the migration engine requires it.
+4. Run `npm run dev` and open [Nikki locally](http://127.0.0.1:4900).
+5. In another terminal, run `npm run worker` for election closing, temporary-file cleanup, and configured preservation jobs.
+
+Keep `RELEASE_MODE=founder`, the supplied `FOUNDER_WALLET`, `VOTING_ENABLED=false`, and `PUBLISHING_ENABLED=false` until storage setup is complete. Wallet sign-in and private submission work independently of the planned token.
+
+## Implemented
+
+- Archive browsing, text search, collection filters, playback, and permanent-record links.
+- Creator studio: MP4/WebM, 1,000,000,000-byte source limit, chunk retries, frozen metadata and SHA-256 fingerprint.
+- Expiring, single-use wallet challenges; X OAuth with PKCE and stable account binding.
+- Finalized Solana eligibility snapshots: strictly more than 10 million NIKKI, private treasury exclusion, one vote per wallet.
+- Signed ballots, a fixed 24-hour window, at least five voters, at least 80% approval.
+- SOL quotes after approval, explicit publication confirmation, exact-payment validation, and immutable quote history.
+- Durable preservation queue. Turbo/Arweave adapter archives the video and a separate JSON record containing its context and signed ballots.
+- Full retrieval, size, fingerprint, and block-inclusion checks before public listing.
+- Temporary-storage limits, crash-lock recovery, and paid-file retention.
+
+Published records have no delete or delist operation. Solana handles voting eligibility and payments; **video bytes are intended for Arweave, not Solana account storage**. Network availability is not an absolute guarantee of “forever.”
+
+## Validate
+
+```sh
+npm test
+npm run build
+npm run test:integration
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The integration script uses generated wallets, an isolated temporary database, a local RPC fixture, and no real payments or storage uploads. It checks authentication replay, upload limits, access control, election outcomes, historical payment recovery, and worker retention.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The 1 GB boundary and streaming/chunk design are checked; a representative real 1 GB video has **not** been uploaded to permanent storage or playback-tested. X account linking has not been tested against live credentials. Browser interaction testing has not been performed.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Before the community launch
 
-## Learn More
+See [operations and deployment](docs/OPERATIONS.md) for hosting, configuration, recovery, dependency findings, and the remaining live acceptance checks. See [product decisions](docs/PRODUCT_BRIEF.md) for the agreed rules.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The original HTML informed the visual direction only. Archival photographs on the About page are credited inspiration, not fake published videos.
