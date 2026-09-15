@@ -1,6 +1,6 @@
 # Public creator platform
 
-**Rollout status:** Code and tests are complete. X secrets and D1 migrations are configured remotely. A dedicated `CREATOR_RPC_URL` is still pending; the creator upgrade is not deployed and token transactions remain disabled until its live checks pass.
+**Rollout status:** Live on Cloudflare Pages as of 15 September 2026. X and dedicated mainnet RPC secrets are configured, D1 migrations are applied, and creator token transactions are enabled. Production HTTP checks passed for wallet signatures/sessions, live SPL/Token-2022 holder lookups, and the X authorization redirect. Deployment: `36642dd1.nikki-run.pages.dev`, code commit `8f7b01f`.
 
 ## Scope
 
@@ -54,6 +54,6 @@ Set `TOKEN_LAUNCH_ENABLED=false` and redeploy to pause new prepared/submitted tr
 
 ## Validation boundaries
 
-Automated tests use generated keys, SQLite-backed D1 fixtures, mocked X/RPC responses and real SDK instruction builders. They cover signature replay/browser binding, origin checks, profile publication/ownership, X state/session binding, exact integer holdings, transaction substitution/signature rejection, persisted-signature recovery, expiry, competing draft actions, and native fee instruction selection. Local Wrangler HTTP tests check real Workers startup and API behavior.
+Automated tests use generated keys, SQLite-backed D1 fixtures, mocked X/RPC responses and real SDK instruction builders. They cover signature replay/browser binding, origin checks, profile publication/ownership, X state/session binding, exact integer holdings, transaction substitution/signature rejection, persisted-signature recovery, expiry, competing draft actions, and native fee instruction selection. Local Wrangler and production HTTP checks verified real Workers startup, wallet login/logout, private draft persistence locally, live holder lookups, X authorization redirect settings, static routes and 404s. The temporary production test wallet had no public profile or transaction and was removed after validation.
 
-No funded launch, trading, fee claim, real video preservation or real-user X OAuth round trip is performed by automated deployment. No browser interaction/visual QA was requested or performed. The optional WebMCP creator-search surface is feature-detected; a supported validation context was unavailable, so its browser contract is not claimed as verified.
+No funded launch, trading, fee claim, real video preservation or real-user X OAuth round trip was performed by automated deployment. An unsigned mainnet launch simulation exercised the insufficient-SOL refusal; no transaction was broadcast. No browser interaction/visual QA was requested or performed. The optional WebMCP creator-search surface is feature-detected; a supported validation context was unavailable, so its browser contract is not claimed as verified.

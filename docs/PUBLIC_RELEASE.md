@@ -9,11 +9,11 @@
 - The archive still contains zero video records; the founder will supply the first video later.
 - Public creator accounts use the Pages advanced-mode Worker and `nikki-creators` D1 database.
 
-The prepared creator upgrade adds creator channels linked to wallet/X, token-holder subscriptions, and explicit wallet-signed pump.fun token launch and fee collection. Creator tokens are separate from the future NIKKI governance token. The Node video publishing application remains a private operator studio. No token launch, fee collection, or permanent storage payment was executed by the deployment agent. No paid hosting plan was purchased.
+The public site includes creator channels linked to wallet/X, token-holder subscriptions, and explicit wallet-signed pump.fun token launch and fee collection. Creator tokens are separate from the future NIKKI governance token. The Node video publishing application remains a private operator studio. No token launch, fee collection, or permanent storage payment was executed by the deployment agent. No paid hosting plan was purchased.
 
 See [creator deployment and recovery](CREATORS.md) for D1, secrets, transaction controls, and validation limits.
 
-The creator upgrade has not been deployed yet. X secrets and the D1 schema are configured; `CREATOR_RPC_URL` is still required for the final live balance/transaction checks. `TOKEN_LAUNCH_ENABLED=false` remains in the deployment configuration.
+The creator upgrade is deployed as `36642dd1.nikki-run.pages.dev` from code commit `8f7b01f`. X and dedicated mainnet RPC secrets are configured, D1 is bound, and `TOKEN_LAUNCH_ENABLED=true` is effective. Production HTTP checks verified signed wallet login, live holder lookups, X authorization redirects, anonymous access controls, static pages, headers, and 404s.
 
 ## Rebuild the public archive
 

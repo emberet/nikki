@@ -2,7 +2,7 @@
 
 A neo-brutalist video archive for preserving human history and knowledge.
 
-**Status: founding archive live on Cloudflare Pages; creator upgrade built, awaiting a dedicated RPC and deployment.** Wallet-and-X channels, pump.fun creator tokens, token-holder subscriptions, and creator fee collection are implemented. The public archive starts empty; the founder’s video will be added later. Public video uploads, storage payments, and NIKKI voting are closed until the later community release. The private Node studio and preservation worker stay on the operator’s machine. No real payment or permanent upload has been made during deployment.
+**Status: creator release live at https://nikki.run on Cloudflare Pages.** Wallet-and-X channels, pump.fun creator tokens, token-holder subscriptions, and creator fee collection are implemented. The public archive starts empty; the founder’s video will be added later. Public video uploads, storage payments, and NIKKI voting are closed until the later community release. The private Node studio and preservation worker stay on the operator’s machine. No real payment or permanent upload has been made during deployment.
 
 ## Public release
 
