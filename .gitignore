@@ -34,3 +34,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+treasury.json
+held/
+*.db
+.env
+test-creator.json
+test-mod.json

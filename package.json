@@ -9,14 +9,27 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@irys/upload": "^0.0.15",
+    "@irys/upload-solana": "^0.1.8",
+    "@prisma/client": "^6.19.3",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/wallet-adapter-phantom": "^0.9.30",
+    "@solana/wallet-adapter-react": "^0.15.40",
+    "@solana/wallet-adapter-react-ui": "^0.9.40",
+    "@solana/wallet-adapter-solflare": "^0.6.34",
+    "@solana/web3.js": "^1.99.0",
+    "bs58": "^6.0.0",
+    "iron-session": "^9.0.1",
+    "next": "14.2.35",
+    "prisma": "^6.19.3",
     "react": "^18",
     "react-dom": "^18",
-    "next": "14.2.35"
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
-    "@types/react-dom": "^18"
+    "@types/react-dom": "^18",
+    "typescript": "^5"
   }
 }

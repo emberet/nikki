@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  wallet    String   @unique
+  role      String   @default("creator") // creator | mod | admin
+  createdAt DateTime @default(now())
+  videos    Video[]
+  reviews   Review[]
+  rewards   RewardEntry[]
+}
+
+model Video {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id])
+  // uploading -> awaiting_payment -> in_review -> approved | rejected
+  status      String   @default("uploading")
+  sizeBytes   BigInt   @default(0)
+  sha256      String?
+  mimeType    String   @default("video/mp4")
+  filePath    String? // held storage path, null after publish/reject
+  arweaveTx   String?  @unique
+  thumbPath   String?
+  createdAt   DateTime @default(now())
+  publishedAt DateTime?
+  payment     Payment?
+  review      Review?
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  videoId       String   @unique
+  video         Video    @relation(fields: [videoId], references: [id])
+  currency      String // SOL | TOKEN
+  amountLamports BigInt // amount in base units (lamports or token base units)
+  quoteLamports  BigInt
+  txSignature   String?  @unique
+  payerWallet   String
+  status        String   @default("pending") // pending | verified | refunded
+  refundTx      String?
+  createdAt     DateTime @default(now())
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  videoId   String   @unique
+  video     Video    @relation(fields: [videoId], references: [id])
+  modId     String
+  mod       User     @relation(fields: [modId], references: [id])
+  decision  String // approved | rejected
+  reason    String   @default("")
+  createdAt DateTime @default(now())
+}
+
+model RewardEntry {
+  id        String   @id @default(cuid())
+  modId     String
+  mod       User     @relation(fields: [modId], references: [id])
+  amount    BigInt // token base units accrued
+  reason    String // e.g. review:<videoId>
+  paidTx    String?
+  createdAt DateTime @default(now())
+}
