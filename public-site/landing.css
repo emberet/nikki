@@ -73,9 +73,11 @@
   padding: 14px 21px;
   font-size: 1rem;
 }
-.landing-primary:hover {
-  background: var(--lime);
-  border-color: var(--lime);
+.btn.landing-primary:hover,
+.btn.landing-primary:focus-visible {
+  background: #0a0a0c;
+  color: var(--pink);
+  border-color: var(--pink);
   box-shadow: 7px 7px var(--purple);
   transform: translate(-2px, -2px);
 }
