@@ -1,4 +1,5 @@
 import { escapeHtml as e } from "../lib/public-record";
+import { nikkiSocialLink } from "./nikki-social";
 
 type CreatorDropOptions = {
   src: string;
@@ -16,7 +17,7 @@ export function creatorDrop({
   return `<section id="creator-drop" class="creator-drop" aria-labelledby="creator-drop-title">
     <div class="creator-drop-copy">
       <p class="creator-drop-kicker"><span aria-hidden="true">✦</span> CREATOR DROP / 001</p>
-      <div class="creator-drop-byline"><img src="/images/nikki-logo.jpg" width="44" height="44" alt="" loading="lazy"><span><strong>Nikki</strong><span>FOUNDER DROP</span></span></div>
+      <div class="creator-drop-byline"><img src="/images/nikki-logo.jpg" width="44" height="44" alt="" loading="lazy"><span><strong>Nikki</strong><span>FOUNDER DROP</span></span>${nikkiSocialLink()}</div>
       <h2 id="creator-drop-title">${e(title)}</h2>
       <p class="creator-drop-intro">Fifteen seconds. A little beautiful trouble.<br>A thing for forever.</p>
       <p id="creator-drop-status" class="creator-drop-status${preview ? " is-preview" : ""}"><span aria-hidden="true">${preview ? "◌" : "✓"}</span> ${preview ? "Private preview · awaiting permanent storage" : "Permanent storage verified"}</p>

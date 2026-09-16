@@ -264,6 +264,13 @@
 .verified-mark {
   color: var(--green);
 }
+.creator-social {
+  min-height: 44px;
+  color: var(--accent);
+}
+.creator-social:hover {
+  color: var(--green);
+}
 .channel-card-bottom {
   display: flex;
   justify-content: space-between;
