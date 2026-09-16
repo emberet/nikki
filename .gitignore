@@ -51,6 +51,7 @@ test-mod.json
 
 # Public deployment output
 /dist-public/
+/dist-drop-preview/
 /releases/
 
 # Cloudflare local runtime and private configuration

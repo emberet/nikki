@@ -1,4 +1,7 @@
 import { landingHero } from "../public-site/landing";
+import { creatorDrop } from "../public-site/creator-drop";
+import { launchDrop } from "../lib/launch-drop";
+import { createHash } from "node:crypto";
 import { helpPage, libraryPage, opsPage } from "../public-site/experience";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -16,7 +19,12 @@ import { escapeHtml as e, publicRecord } from "../lib/public-record";
 
 async function main() {
   const root = process.cwd();
-  const out = path.join(root, "dist-public");
+  // A payment-pending preview must never overwrite the deployable export.
+  const previewDrop = process.argv.includes("--preview-creator-drop");
+  const out = path.join(
+    root,
+    previewDrop ? "dist-drop-preview" : "dist-public",
+  );
   const origin = "https://nikki.run";
   const founder = process.env.FOUNDER_WALLET;
   if (!founder || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(founder))
@@ -29,6 +37,29 @@ async function main() {
     orderBy: { publishedAt: "desc" },
   });
   const records = videos.map((video) => publicRecord(video, founder));
+  const dropRecord = records.find(
+    (record) =>
+      record.sha256 === launchDrop.sha256 &&
+      record.title === launchDrop.title &&
+      record.sizeBytes === String(launchDrop.sizeBytes),
+  );
+  const stagedDrop = path.join(root, "releases", "creator-drop");
+  async function checkedDropAsset(name: string, hash: string) {
+    const bytes = await fs.readFile(path.join(stagedDrop, name));
+    if (createHash("sha256").update(bytes).digest("hex") !== hash)
+      throw Error("The prepared creator-drop asset has changed: " + name);
+    return bytes;
+  }
+  const dropVideo = previewDrop
+    ? await checkedDropAsset("Nikki-Launch-15s.mp4", launchDrop.sha256)
+    : undefined;
+  const dropPoster =
+    previewDrop || dropRecord
+      ? await checkedDropAsset(
+          "Nikki-Launch-Cover.png",
+          launchDrop.posterSha256,
+        )
+      : undefined;
   await db.$disconnect();
   await fs.mkdir(out, { recursive: true });
   // Clear only the generated directory, after all database records pass validation.
@@ -43,6 +74,15 @@ async function main() {
     await fs.cp(path.join(root, "public", name), path.join(out, name), {
       recursive: true,
     });
+  if (dropPoster)
+    await fs.writeFile(
+      path.join(out, "images/nikki-launch-cover.png"),
+      dropPoster,
+    );
+  if (dropVideo) {
+    await fs.mkdir(path.join(out, "media"), { recursive: true });
+    await fs.writeFile(path.join(out, "media/nikki-launch-15s.mp4"), dropVideo);
+  }
   await fs.copyFile(
     path.join(root, "app/globals.css"),
     path.join(out, "theme.css"),
@@ -54,7 +94,7 @@ async function main() {
   const description =
     "A permanent record of human history and knowledge, told through long-form video. Nikki’s founding chapter begins here.";
   function page(title: string, body: string, route = "/", js = false) {
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${e(title)} — Nikki</title><meta name="description" content="${e(description)}"><meta name="theme-color" content="#0a0a0c"><link rel="canonical" href="${origin}${route}"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)} — Nikki"><meta property="og:description" content="${e(description)}"><meta property="og:url" content="${origin}${route}"><meta name="twitter:card" content="summary"><link rel="icon" href="/images/nikki-logo.jpg" type="image/jpeg"><link rel="preload" href="/fonts/archivo-black.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/release.css"><link rel="stylesheet" href="/creators.css"><link rel="stylesheet" href="/experience.css">${route === "/creator-studio/" ? '<link rel="stylesheet" href="/storage-pricing.css"><script src="/storage-pricing-client.js" type="module"></script>' : ""}${route === "/" ? '<link rel="stylesheet" href="/landing.css"><link rel="preload" href="/images/nikki-logo.jpg" as="image"><script src="/landing-client.js" type="module"></script>' : ""}<script src="/creator-client.js" type="module"></script>${js ? '<script src="/archive.js" defer></script>' : ""}</head><body><a class="skip-link" href="#content">Skip to content</a><header class="nav"><a href="/" class="brand" aria-label="Nikki archive"><img class="brand-mark brand-logo" src="/images/nikki-logo.jpg" width="44" height="44" alt=""><span><span class="brand-name">NIKKI</span><span class="brand-caption">THE PERMANENT RECORD</span></span></a><nav class="nav-links" aria-label="Main navigation"><a href="/#archive"${route === "/" ? ' aria-current="page"' : ""}>Archive</a><a href="/creators/">Creators</a><a href="/creator-studio/">Creator studio</a><a href="/about/"${route === "/about/" ? ' aria-current="page"' : ""}>The idea ↗</a></nav><button class="btn btn-small creator-connect" data-connect>Connect wallet ↗</button><button id="motion-toggle" class="motion-toggle" aria-pressed="true">Motion: on</button><button class="app-menu-button" data-open-menu aria-label="Open menu">${icon("menu")}</button></header><div class="ticker"><span>Human history. Shared knowledge.</span><span>Recorded for the future</span><span>Built to outlast us ↗</span></div><main id="content" class="container">${body}</main><footer class="footer"><span>© ${new Date().getFullYear()} NIKKI · A RECORD WORTH KEEPING.</span><div class="footer-links"><a href="/about/">How Nikki works ↗</a><a href="/about/#roadmap">What comes next ↗</a><a href="/help/">Help & reports</a><a href="/library/">Library</a><a href="/privacy/">Privacy</a><a href="/about/#credits">Credits</a></div></footer>${mobileNavigation(route)}${appMenu()}${creatorDialogs()}</body></html>`;
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${e(title)} — Nikki</title><meta name="description" content="${e(description)}"><meta name="theme-color" content="#0a0a0c">${previewDrop ? '<meta name="robots" content="noindex,nofollow">' : ""}<link rel="canonical" href="${origin}${route}"><meta property="og:type" content="website"><meta property="og:title" content="${e(title)} — Nikki"><meta property="og:description" content="${e(description)}"><meta property="og:url" content="${origin}${route}"><meta name="twitter:card" content="summary"><link rel="icon" href="/images/nikki-logo.jpg" type="image/jpeg"><link rel="preload" href="/fonts/archivo-black.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/release.css"><link rel="stylesheet" href="/creators.css"><link rel="stylesheet" href="/experience.css">${route === "/creator-studio/" ? '<link rel="stylesheet" href="/storage-pricing.css"><script src="/storage-pricing-client.js" type="module"></script>' : ""}${route === "/" ? '<link rel="stylesheet" href="/landing.css"><link rel="stylesheet" href="/creator-drop.css"><link rel="preload" href="/images/nikki-logo.jpg" as="image"><script src="/landing-client.js" type="module"></script>' : ""}<script src="/creator-client.js" type="module"></script>${js ? '<script src="/archive.js" defer></script>' : ""}</head><body><a class="skip-link" href="#content">Skip to content</a><header class="nav"><a href="/" class="brand" aria-label="Nikki archive"><img class="brand-mark brand-logo" src="/images/nikki-logo.jpg" width="44" height="44" alt=""><span><span class="brand-name">NIKKI</span><span class="brand-caption">THE PERMANENT RECORD</span></span></a><nav class="nav-links" aria-label="Main navigation"><a href="/#archive"${route === "/" ? ' aria-current="page"' : ""}>Archive</a><a href="/creators/">Creators</a><a href="/creator-studio/">Creator studio</a><a href="/about/"${route === "/about/" ? ' aria-current="page"' : ""}>The idea ↗</a></nav><button class="btn btn-small creator-connect" data-connect>Connect wallet ↗</button><button id="motion-toggle" class="motion-toggle" aria-pressed="true">Motion: on</button><button class="app-menu-button" data-open-menu aria-label="Open menu">${icon("menu")}</button></header><div class="ticker"><span>Human history. Shared knowledge.</span><span>Recorded for the future</span><span>Built to outlast us ↗</span></div><main id="content" class="container">${body}</main><footer class="footer"><span>© ${new Date().getFullYear()} NIKKI · A RECORD WORTH KEEPING.</span><div class="footer-links"><a href="/about/">How Nikki works ↗</a><a href="/about/#roadmap">What comes next ↗</a><a href="/help/">Help & reports</a><a href="/library/">Library</a><a href="/privacy/">Privacy</a><a href="/about/#credits">Credits</a></div></footer>${mobileNavigation(route)}${appMenu()}${creatorDialogs()}</body></html>`;
   }
   await fs.copyFile(
     path.join(root, "public-site/creators.css"),
@@ -67,6 +107,10 @@ async function main() {
   await fs.copyFile(
     path.join(root, "public-site/landing.css"),
     path.join(out, "landing.css"),
+  );
+  await fs.copyFile(
+    path.join(root, "public-site/creator-drop.css"),
+    path.join(out, "creator-drop.css"),
   );
   await fs.copyFile(
     path.join(root, "public-site/storage-pricing.css"),
@@ -172,7 +216,7 @@ async function main() {
     "index.html",
     page(
       "A thing for forever",
-      `${landingHero()}<div class="notice release-note"><span class="status-dot" aria-hidden="true"></span><span>Creator channels are open. ${records.length ? "The founding record is ready to watch." : "The founder’s first video is on its way."} Public video uploads open in a later release.</span></div><section id="archive" aria-labelledby="archive-title"><div class="section-heading"><h2 id="archive-title">The permanent record<span class="accent">.</span></h2><span class="eyebrow muted">${records.length} RECORDS / OPEN TO EVERYONE</span></div>${records.length ? `<div class="toolbar"><div class="filters" role="group" aria-label="Filter by category">${["All records", "History", "Knowledge", "Culture"].map((c, i) => `<button class="filter ${i === 0 ? "active" : ""}" aria-pressed="${i === 0}" data-filter="${c}">${c}</button>`).join("")}</div><div class="search"><label for="archive-search" class="sr-only">Search the archive</label><input id="archive-search" type="search" placeholder="Search stories, ideas, discoveries…"></div></div><p id="result-count" class="footnote" aria-live="polite">${records.length} records</p><div class="grid">${cards}</div><div id="no-results" class="empty-state" hidden><h3>No matching records</h3><p>Try another search or category.</p></div>` : `<div class="empty-state"><div class="eyebrow accent">THE FIRST RECORD / COMING SOON</div><div class="empty-symbol" aria-hidden="true">[ ▶ ]</div><h3>Something worth waiting up for.</h3><p>Nikki’s founder will publish the first video here. A record appears only after its permanent storage has been verified.</p><a href="/about/#roadmap" class="btn">See what comes next ↗</a></div>`}</section><section class="section-space" aria-labelledby="purpose-title"><div class="section-heading"><h2 id="purpose-title">A future with a memory<span class="accent">.</span></h2><a class="eyebrow text-link" href="/about/">Read our purpose ↗</a></div>${inspiration()}</section>`,
+      `${previewDrop ? '<div class="notice release-note"><strong>PRIVATE PREVIEW · NOT PUBLISHED</strong> — Awaiting permanent-storage funding and founder approval.</div>' : ""}${landingHero()}${previewDrop || dropRecord ? creatorDrop({ title: launchDrop.title, src: previewDrop ? "/media/nikki-launch-15s.mp4" : `https://arweave.net/${dropRecord!.arweaveTx}`, preview: previewDrop, watchUrl: dropRecord ? `/watch/${dropRecord.arweaveTx}/` : undefined }) : ""}<div class="notice release-note"><span class="status-dot" aria-hidden="true"></span><span>Creator channels are open. ${records.length ? "The founding record is ready to watch." : "The first permanent record is on its way."} Public video uploads open in a later release.</span></div><section id="archive" aria-labelledby="archive-title"><div class="section-heading"><h2 id="archive-title">The permanent record<span class="accent">.</span></h2><span class="eyebrow muted">${records.length} RECORDS / OPEN TO EVERYONE</span></div>${records.length ? `<div class="toolbar"><div class="filters" role="group" aria-label="Filter by category">${["All records", "History", "Knowledge", "Culture"].map((c, i) => `<button class="filter ${i === 0 ? "active" : ""}" aria-pressed="${i === 0}" data-filter="${c}">${c}</button>`).join("")}</div><div class="search"><label for="archive-search" class="sr-only">Search the archive</label><input id="archive-search" type="search" placeholder="Search stories, ideas, discoveries…"></div></div><p id="result-count" class="footnote" aria-live="polite">${records.length} records</p><div class="grid">${cards}</div><div id="no-results" class="empty-state" hidden><h3>No matching records</h3><p>Try another search or category.</p></div>` : `<div class="empty-state"><div class="eyebrow accent">THE FIRST RECORD / COMING SOON</div><div class="empty-symbol" aria-hidden="true">[ ▶ ]</div><h3>Something worth waiting up for.</h3><p>Nikki’s founder will publish the first permanent record here. A record appears only after its permanent storage has been verified.</p><a href="/about/#roadmap" class="btn">See what comes next ↗</a></div>`}</section><section class="section-space" aria-labelledby="purpose-title"><div class="section-heading"><h2 id="purpose-title">A future with a memory<span class="accent">.</span></h2><a class="eyebrow text-link" href="/about/">Read our purpose ↗</a></div>${inspiration()}</section>`,
       "/",
       records.length > 0,
     ),
@@ -225,7 +269,9 @@ async function main() {
   );
   await write(
     "robots.txt",
-    `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`,
+    previewDrop
+      ? "User-agent: *\nDisallow: /\n"
+      : `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`,
   );
   await write(
     "sitemap.xml",
@@ -233,10 +279,10 @@ async function main() {
   );
   await write(
     "_headers",
-    `/*\n  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; media-src https://arweave.net https://*.arweave.net; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()\n  Cache-Control: public, max-age=0, must-revalidate\n/fonts/*\n  Cache-Control: public, max-age=86400\n/images/*\n  Cache-Control: public, max-age=86400\n`,
+    `/*\n${previewDrop ? "  X-Robots-Tag: noindex, nofollow\n" : ""}  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; media-src ${previewDrop ? "'self' " : ""}https://arweave.net https://*.arweave.net; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()\n  Cache-Control: public, max-age=0, must-revalidate\n/fonts/*\n  Cache-Control: public, max-age=86400\n/images/*\n  Cache-Control: public, max-age=86400\n`,
   );
   console.log(
-    `Built public founding archive: ${records.length} verified records, ${out}`,
+    `Built ${previewDrop ? "PRIVATE creator-drop preview (do not deploy)" : "public founding archive"}: ${records.length} verified records, ${out}`,
   );
 }
 main()

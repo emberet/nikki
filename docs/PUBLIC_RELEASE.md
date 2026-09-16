@@ -6,7 +6,7 @@
 - Public origin: `https://nikki.run`. Cloudflare confirmed **Active / SSL enabled** on 15 September 2026.
 - Cloudflare hostname: `https://nikki-run.pages.dev`.
 - Apex DNS: CNAME `@` → `nikki-run.pages.dev`, managed through Pages custom domains.
-- The archive still contains zero video records; the founder will supply the first video later.
+- The archive still contains zero video records; the first creator drop is staged locally, awaiting permanent-storage funding.
 - Public creator accounts use the Pages advanced-mode Worker and `nikki-creators` D1 database.
 
 The public site includes creator channels linked to wallet/X, token-holder subscriptions, and explicit wallet-signed pump.fun token launch and fee collection. Creator tokens are separate from the future NIKKI governance token. The Node video publishing application remains a private operator studio. No token launch, fee collection, or permanent storage payment was executed by the deployment agent. No paid hosting plan was purchased.
@@ -25,9 +25,13 @@ The creator upgrade is deployed as `36642dd1.nikki-run.pages.dev` from code comm
 
 `scripts/build-public.ts` generates the public pages, watch pages, JSON catalog, headers, and sitemap. Styling reuses `app/globals.css` plus public release overrides. Public image and font assets come from the explicit `public/images` and `public/fonts` directories. Font licenses are included.
 
-## Add the first video later
+## Prepared first creator drop
 
-The user will supply the video later. Its title, context, recording date, source, language, and file must be reviewed before its permanent publication. The configured founder wallet is `FcRL7KJYC1h1HLMbwZELZftxkZFAg4v5cgAKNqfFfiUC`.
+The launch film is now prepared locally with the caption **Nikki is live?**, pending permanent-storage funding. See [the staged drop and resume steps](CREATOR_DROP.md). The public archive remains empty until preservation is verified; the private preview must not be deployed.
+
+## Publish the first video after funding
+
+The prepared film’s title, context, recording date, source, language, and file must be reviewed before its permanent publication. The configured founder wallet is `FcRL7KJYC1h1HLMbwZELZftxkZFAg4v5cgAKNqfFfiUC`.
 
 1. Run the private studio and worker locally. Keep their origin local; they are not hosted at the public static domain.
 2. Configure a separate storage signer with prepaid Turbo credits. Keep keys outside the repository. Configure and verify storage before setting `PUBLISHING_ENABLED=true`. Do not launch the token or enable voting for this step.

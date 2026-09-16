@@ -16,6 +16,7 @@
     "storage:reconcile": "node --env-file-if-exists=.env --import tsx scripts/reconcile-storage.ts",
     "db:backup": "node --env-file-if-exists=.env scripts/backup-db.mjs",
     "build:public": "node --env-file-if-exists=.env --import tsx scripts/build-public.ts",
+    "preview:drop": "node --env-file-if-exists=.env --import tsx scripts/build-public.ts --preview-creator-drop",
     "test:creators": "tsx --test tests/creators.test.ts"
   },
   "dependencies": {
