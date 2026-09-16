@@ -302,12 +302,24 @@ export default function Studio() {
               <span>Maximum video size</span>
             </div>
             <div className="rule-card">
-              <strong>24h</strong>
-              <span>Community review</span>
+              <strong>
+                {launch.releaseMode === "founder" ? "Signed" : "24h"}
+              </strong>
+              <span>
+                {launch.releaseMode === "founder"
+                  ? "Founder approval"
+                  : "Community review"}
+              </span>
             </div>
             <div className="rule-card">
-              <strong>SOL</strong>
-              <span>One-time storage payment</span>
+              <strong>
+                {launch.releaseMode === "founder" ? "Prepaid" : "SOL"}
+              </strong>
+              <span>
+                {launch.releaseMode === "founder"
+                  ? "Project-funded storage"
+                  : "One-time storage payment"}
+              </span>
             </div>
           </div>
         </>
@@ -461,16 +473,28 @@ export default function Studio() {
                 className="footnote"
                 style={{ marginTop: 20, marginBottom: 0 }}
               >
-                Your file stays private until voting, payment, and preservation
-                are complete. Incomplete uploads expire after 24 hours.
-                Submissions awaiting voting expire after seven days. After a
-                vote closes, unpaid submissions without a quote are held for
-                another seven days.
+                {launch.releaseMode === "founder" ? (
+                  <>
+                    Your file is held privately pending your founder signature
+                    and permanent-storage verification. Incomplete uploads
+                    expire after 24 hours; unsigned submissions expire after
+                    seven days. The project’s prepaid storage credits cover this
+                    founding record.
+                  </>
+                ) : (
+                  <>
+                    Your file stays private until voting, payment, and
+                    preservation are complete. Incomplete uploads expire after
+                    24 hours. Submissions awaiting voting expire after seven
+                    days. After a vote closes, unpaid submissions without a
+                    quote are held for another seven days.
+                  </>
+                )}
               </p>
             </section>
             <aside>
               <Process founder={launch.releaseMode === "founder"} />
-              {!votingReady && (
+              {!votingReady && launch.releaseMode !== "founder" && (
                 <div className="notice warning" style={{ marginTop: 24 }}>
                   The NIKKI token is planned. You can prepare a submission; live
                   voting will open when token eligibility and moderator sign-in
@@ -591,7 +615,10 @@ export default function Studio() {
                       </p>
                     </div>
                     <span className={"badge " + v.status}>
-                      {statusLabel(v.status)}
+                      {launch.releaseMode === "founder" &&
+                      v.status === "snapshot_pending"
+                        ? "Ready for founder signature"
+                        : statusLabel(v.status)}
                     </span>
                   </div>
                   {v.voteClosesAt && (

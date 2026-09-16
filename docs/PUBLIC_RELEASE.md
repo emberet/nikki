@@ -6,7 +6,7 @@
 - Public origin: `https://nikki.run`. Cloudflare confirmed **Active / SSL enabled** on 15 September 2026.
 - Cloudflare hostname: `https://nikki-run.pages.dev`.
 - Apex DNS: CNAME `@` → `nikki-run.pages.dev`, managed through Pages custom domains.
-- The archive still contains zero video records; the first creator drop is staged locally, awaiting permanent-storage funding.
+- The archive still contains zero video records; the first creator drop is staged locally, awaiting the founder’s publication signature.
 - Public creator accounts use the Pages advanced-mode Worker and `nikki-creators` D1 database.
 
 The public site includes creator channels linked to wallet/X, token-holder subscriptions, and explicit wallet-signed pump.fun token launch and fee collection. Creator tokens are separate from the future NIKKI governance token. The Node video publishing application remains a private operator studio. No token launch, fee collection, or permanent storage payment was executed by the deployment agent. No paid hosting plan was purchased.
@@ -27,7 +27,7 @@ The creator upgrade is deployed as `36642dd1.nikki-run.pages.dev` from code comm
 
 ## Prepared first creator drop
 
-The launch film is now prepared locally with the caption **Nikki is live?**, pending permanent-storage funding. See [the staged drop and resume steps](CREATOR_DROP.md). The public archive remains empty until preservation is verified; the private preview must not be deployed.
+The launch film is now prepared locally with the caption **Nikki is live?**, with storage funded and its founder signature pending. See [the staged drop and resume steps](CREATOR_DROP.md). The public archive remains empty until preservation is verified; the private preview must not be deployed.
 
 ## Publish the first video after funding
 
