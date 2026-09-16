@@ -49,7 +49,7 @@ Existing creator account, wallet signing and X verification setup is documented 
 
 - All 95 automated tests pass, including token-link normalization, provider failure/mismatched data, onchain authority preservation, channel/community post permissions, image ownership/readiness, removal visibility and storage quotas. TypeScript and the public build pass.
 - X identities used by these automated/local tests are fixtures. This release does not claim a new real-user X OAuth round trip from those checks.
-- Production deployment and browser QA are recorded separately after they complete. The historical release below describes the earlier text-only Communities deployment.
+- Production deployment and browser QA are recorded in the device-artwork release verification below. The historical release describes the earlier text-only Communities deployment.
 
 ## Historical release verification — initial Communities, 17 September 2026
 
@@ -62,10 +62,12 @@ Existing creator account, wallet signing and X verification setup is documented 
 - Production checks verified the directory and API, import login requirements, cross-origin rejection, unknown-community 404s, shared navigation and styles. The public directory starts empty until an eligible signed-in organizer imports a community.
 - The signed archive JSON remains byte-for-byte unchanged (SHA-256 `66cac8f11a127547c2c9a133281507712b40b82589c899d8bb4bd9e6d32a728f`). No token transactions, fee transfers or permanent uploads were performed.
 
-### Device artwork and free-image release verification
+## Device artwork and free-image release verification — 17 September 2026
 
 - The isolated local Cloudflare runtime accepted device logo/banner uploads, saved both to a community, and served the attached images publicly after save.
 - Browser checks verified channel text-only and text-plus-image posts, an image-only community post, accessible image descriptions, the provider-link entry form, and post-report references surviving initial sign-in. No test content was posted to production.
 - Desktop, 390 px and 320 px layouts were checked. The mobile composer and feeds have no horizontal overflow at those widths.
 - Anonymous feeds and attached images are readable; unauthenticated posting is rejected. Backend tests cover deletion, moderation, ownership, retries, caps, and cleanup races. Real-user X authentication and current external provider responses were not re-tested in this release.
 - A private remote D1 export passed an isolated restore before additive migration 0004 was applied. The public archive remains byte-for-byte unchanged (SHA-256 `66cac8f11a127547c2c9a133281507712b40b82589c899d8bb4bd9e6d32a728f`).
+
+- Source commit `fad6999` is deployed at https://082e3a52.nikki-run.pages.dev. Cloudflare lists both `nikki.run` and `nikki-run.pages.dev` on the production project. Live alias checks verified the final bundle hash, community/studio/channel pages, channel feed API, R2-enabled configuration, expected 404s, primary-origin unauthenticated rejection and cross-origin rejection. The primary custom domain was verified through the Cloudflare project configuration rather than a direct browser fetch.
