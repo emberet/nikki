@@ -1,0 +1,343 @@
+.post-floating {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 35;
+  min-width: 124px;
+  box-shadow: 5px 5px var(--pink, #ff90cb);
+  border: 2px solid #0a0a0c;
+  font-size: 1.05rem;
+}
+.post-floating span {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.post-dialog {
+  width: min(660px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+.post-dialog h2 {
+  padding-right: 22px;
+}
+.post-dialog textarea {
+  border: 0;
+  border-bottom: 2px solid var(--line);
+  background: transparent;
+  min-height: 155px;
+  font-size: 1.2rem;
+  line-height: 1.55;
+  resize: vertical;
+  padding: 18px 0;
+  width: 100%;
+}
+.post-dialog textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+.post-as {
+  font:
+    0.78rem Space,
+    monospace;
+  color: var(--muted);
+}
+.post-composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+.post-composer-toolbar #submit-channel-post {
+  margin-left: auto;
+}
+.post-composer-toolbar #post-counter {
+  font-size: 0.67rem;
+}
+.post-image-picker {
+  position: relative;
+  overflow: hidden;
+  gap: 10px;
+  cursor: pointer;
+}
+.post-image-picker input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+.post-image-picker:focus-within {
+  outline: 3px solid var(--pink);
+  outline-offset: 3px;
+}
+.post-image-picker:has(input:disabled) {
+  opacity: 0.5;
+  cursor: wait;
+}
+.post-free {
+  color: var(--lime, #d6ff65);
+  font:
+    0.74rem Space,
+    monospace;
+  margin: 24px 0 10px;
+}
+.post-free span {
+  font-size: 1rem;
+  margin-right: 8px;
+}
+.post-free-badge {
+  font:
+    0.68rem Space,
+    monospace;
+  padding: 10px 13px;
+  border: 1px solid var(--lime, #d6ff65);
+  color: var(--lime, #d6ff65);
+  white-space: normal;
+}
+.post-attachment {
+  margin-top: 20px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.post-attachment img {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  background: #080809;
+  margin-bottom: 12px;
+}
+.post-attachment label {
+  margin-top: 18px;
+  font-size: 0.85rem;
+}
+.post-attachment label span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.post-attachment input {
+  width: 100%;
+}
+.channel-post-list {
+  display: grid;
+  gap: 18px;
+  max-width: 820px;
+  margin-top: 28px;
+}
+.channel-post-card {
+  background: #121016;
+  border: 2px solid #403447;
+  padding: 24px;
+  box-shadow: 5px 5px #24162d;
+  min-width: 0;
+  animation: post-arrive 0.25s ease-out;
+}
+.channel-post-card header {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.post-avatar {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: none;
+  background: var(--accent);
+  color: #0a0a0c;
+  font:
+    1rem Archivo,
+    sans-serif;
+  border: 2px solid var(--ink, #f2f1ed);
+}
+.post-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.channel-post-card header strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.post-meta {
+  display: block;
+  font:
+    0.66rem Space,
+    monospace;
+  color: var(--muted);
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.post-mark {
+  margin-left: auto;
+  color: var(--pink);
+  font-size: 1.7rem;
+}
+.channel-post-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+  font-size: 1.03rem;
+  margin: 22px 0;
+}
+.channel-post-picture {
+  display: block;
+  background: #080809;
+  border: 1px solid var(--line);
+  margin-top: 18px;
+}
+.channel-post-picture img {
+  width: 100%;
+  height: auto;
+  max-height: 680px;
+  object-fit: contain;
+  display: block;
+}
+.channel-post-card footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin-top: 22px;
+  font:
+    0.59rem Space,
+    monospace;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.channel-post-card footer div {
+  display: flex;
+  gap: 18px;
+}
+.channel-post-card footer a,
+.channel-post-card footer button {
+  font: inherit;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  padding: 5px 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  min-height: 32px;
+}
+.channel-post-card footer a:hover,
+.channel-post-card footer button:hover {
+  color: var(--pink);
+}
+.channel-post-empty {
+  padding: 42px 28px;
+  border: 2px dashed #55445f;
+  background: #151019;
+  max-width: 820px;
+  text-align: center;
+  margin: 24px 0;
+}
+.channel-post-empty > span {
+  font-size: 3rem;
+  color: var(--pink);
+}
+.channel-post-empty h3 {
+  font-size: 1.4rem;
+  margin: 18px 0 12px;
+}
+.channel-post-empty p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.channel-post-empty .btn {
+  margin-top: 20px;
+}
+.post-more {
+  margin-top: 24px;
+}
+.studio-post-panel {
+  max-width: 960px;
+}
+.post-dialog::backdrop {
+  background: #09070cd9;
+  backdrop-filter: blur(4px);
+}
+html[data-studio-tab="posts"]
+  [data-studio-panel]:not([data-studio-panel="posts"]) {
+  display: none;
+}
+@keyframes post-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 640px) {
+  .post-floating {
+    bottom: calc(90px + env(safe-area-inset-bottom));
+    right: 18px;
+    min-width: 103px;
+    min-height: 48px;
+    font-size: 0.9rem;
+  }
+  .post-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    margin: auto 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    max-height: calc(100dvh - 20px);
+    padding: 26px 20px calc(24px + env(safe-area-inset-bottom));
+  }
+  .post-dialog h2 {
+    font-size: 1.8rem;
+  }
+  .post-composer-toolbar {
+    gap: 10px;
+  }
+  .post-composer-toolbar #post-counter {
+    order: 3;
+    width: 100%;
+    text-align: right;
+  }
+  .channel-post-card {
+    padding: 18px 16px;
+  }
+  .channel-post-empty {
+    padding: 32px 18px;
+  }
+  .channel-post-card footer {
+    font-size: 0.58rem;
+  }
+  .channel-post-card footer a,
+  .channel-post-card footer button {
+    min-height: 44px;
+  }
+  .channel-post-picture img {
+    max-height: 520px;
+  }
+  .studio-tabs {
+    overflow-x: auto;
+  }
+  .studio-tabs button {
+    flex: 1;
+    min-width: 86px;
+  }
+  .post-free-badge {
+    font-size: 0.61rem;
+  }
+}
+html[data-motion="off"] .channel-post-card {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .channel-post-card {
+    animation: none;
+  }
+}

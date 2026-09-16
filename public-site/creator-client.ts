@@ -1,3 +1,4 @@
+import { startChannelPosts } from "./channel-posts-client";
 import { startCommunities } from "./communities-client";
 import { startExperience } from "./experience-client";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
@@ -76,21 +77,37 @@ let directoryRequest = 0,
 const initialTokenPanel = $("#token-panel")?.innerHTML || "";
 let toastTimer: ReturnType<typeof setTimeout>;
 async function request(path: string, data?: unknown) {
-  const r = await fetch("/api/creators" + path, {
-    method: data === undefined ? "GET" : "POST",
-    credentials: "same-origin",
-    headers: data === undefined ? {} : { "Content-Type": "application/json" },
-    body: data === undefined ? undefined : JSON.stringify(data),
-  });
-  let value: any;
+  const controller = new AbortController(),
+    timeout = setTimeout(() => controller.abort(), 30000);
   try {
-    value = await r.json();
-  } catch {
-    throw Error("Creator accounts are not available in this preview yet.");
+    const r = await fetch("/api/creators" + path, {
+      method: data === undefined ? "GET" : "POST",
+      credentials: "same-origin",
+      headers: data === undefined ? {} : { "Content-Type": "application/json" },
+      body: data === undefined ? undefined : JSON.stringify(data),
+      signal: controller.signal,
+    });
+    let value: any;
+    try {
+      value = await r.json();
+    } catch {
+      if (controller.signal.aborted) throw new Error("Request timed out.");
+      throw Error("Creator accounts are not available in this preview yet.");
+    }
+    if (!r.ok)
+      throw Error(value.error || "This action could not be completed.");
+    return value;
+  } catch (error) {
+    if (controller.signal.aborted)
+      throw Error(
+        "This request took too long. Check its status, then try again.",
+      );
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  if (!r.ok) throw Error(value.error || "This action could not be completed.");
-  return value;
 }
+
 function toast(message: string) {
   const box = $("#creator-toast");
   if (!box) return;
@@ -162,6 +179,7 @@ async function refreshMe() {
   await Promise.all([
     experience.accountChanged(),
     communities.accountChanged(),
+    channelPosts.accountChanged(),
   ]);
 }
 function walletDialog() {
@@ -631,7 +649,8 @@ async function publicChannel() {
     });
     records = archive.records.filter((r: any) => r.creator === channel.wallet);
     document.title = channel.display_name + " — Nikki";
-    box.innerHTML = `<a class="eyebrow text-link" href="/creators/">← All creators</a><header class="public-channel-header tone-${tone(channel.accent)}"><div class="public-channel-cover ${channel.banner_id ? "has-image" : ""}">${channel.banner_id ? `<img src="/api/creators/media/${e(channel.banner_id)}" alt="" width="1200" height="400">` : ""}<span>${e(channel.category)} / PERMANENT RECORDS</span><strong>MAKE IT<br>WORTH KEEPING.</strong><span class="cover-symbol">↗</span></div><div class="public-channel-identity"><div class="channel-avatar">${channel.avatar_id ? `<img src="/api/creators/media/${e(channel.avatar_id)}" alt="" width="400" height="400">` : e(channel.display_name.slice(0, 2).toUpperCase())}</div><div><h1>${e(channel.display_name)}</h1><a class="x-link" href="https://x.com/i/user/${e(channel.x_id)}" target="_blank" rel="noreferrer">𝕏 @${e(channel.x_username)} ✓</a><span class="mono muted">${e(short(channel.wallet))}</span></div><div class="channel-subscribe">${channel.mint ? `<button class="btn btn-primary" id="check-membership" data-handle="${e(handle)}">♡ Check holder status</button><a class="text-link" href="https://pump.fun/coin/${e(channel.mint)}" target="_blank" rel="noreferrer">View $${e(channel.token_symbol)} on pump.fun ↗</a>` : '<span class="badge">CREATOR TOKEN NOT LAUNCHED</span>'}</div></div></header><div class="channel-about-row"><p>${e(channel.bio)}</p><div class="holder-tag">${records.length} PRESERVED ${records.length === 1 ? "VIDEO" : "VIDEOS"}</div></div><p id="membership-status" class="field-help" aria-live="polite">${channel.mint ? "Holding this creator’s token makes you a subscriber. Videos remain free to watch." : "This creator can launch a token when they are ready."}</p><div class="channel-actions"><button class="btn" data-share-url="https://nikki.run/c/${e(handle)}/">Share channel ↗</button><button class="btn" data-copy="https://nikki.run/c/${e(handle)}/">Copy link</button><a class="text-link" href="/help/?channel=${e(handle)}">Report or get help</a></div>${channel.mint ? `<details class="token-proof"><summary>Check the creator token</summary><p>This mint was checked against its confirmed pump.fun launch and creator wallet. X pairing confirms account control, not content accuracy or token value.</p><dl class="record-details"><dt>TOKEN MINT</dt><dd class="mono">${e(channel.mint)}</dd><dt>CREATOR & FEE RECIPIENT</dt><dd class="mono">${e(channel.wallet)}</dd></dl><div class="btn-row"><button class="btn btn-small" data-copy="${e(channel.mint)}">Copy mint</button><a class="btn btn-small" href="https://solscan.io/token/${e(channel.mint)}" target="_blank" rel="noreferrer">Check on Solana ↗</a></div></details>` : ""}<section class="section-space"><div class="section-heading"><h2>The work<span class="accent">.</span></h2><span class="eyebrow muted">PRESERVED FOR EVERYONE</span></div>${records.length ? `<div class="grid">${records.map((r) => `<a class="card video-card" href="/watch/${e(r.arweaveTx)}/"><div class="thumb"><span class="thumb-play">▶</span><span class="thumb-label">${(Number(r.sizeBytes) / 1e6).toFixed(0)} MB</span></div><div class="meta"><span class="badge published">Preserved</span><h3>${e(r.title)}</h3></div></a>`).join("")}</div>` : '<div class="empty-state"><div class="empty-symbol" aria-hidden="true">[ ▶ ]</div><h3>A first record is worth waiting for.</h3><p>This creator has no preserved videos yet. Records appear only after approval and verified permanent storage.</p></div>'}</section>`;
+    box.innerHTML = `<a class="eyebrow text-link" href="/creators/">← All creators</a><header class="public-channel-header tone-${tone(channel.accent)}"><div class="public-channel-cover ${channel.banner_id ? "has-image" : ""}">${channel.banner_id ? `<img src="/api/creators/media/${e(channel.banner_id)}" alt="" width="1200" height="400">` : ""}<span>${e(channel.category)} / PERMANENT RECORDS</span><strong>MAKE IT<br>WORTH KEEPING.</strong><span class="cover-symbol">↗</span></div><div class="public-channel-identity"><div class="channel-avatar">${channel.avatar_id ? `<img src="/api/creators/media/${e(channel.avatar_id)}" alt="" width="400" height="400">` : e(channel.display_name.slice(0, 2).toUpperCase())}</div><div><h1>${e(channel.display_name)}</h1><a class="x-link" href="https://x.com/i/user/${e(channel.x_id)}" target="_blank" rel="noreferrer">𝕏 @${e(channel.x_username)} ✓</a><span class="mono muted">${e(short(channel.wallet))}</span></div><div class="channel-subscribe">${channel.mint ? `<button class="btn btn-primary" id="check-membership" data-handle="${e(handle)}">♡ Check holder status</button><a class="text-link" href="https://pump.fun/coin/${e(channel.mint)}" target="_blank" rel="noreferrer">View $${e(channel.token_symbol)} on pump.fun ↗</a>` : '<span class="badge">CREATOR TOKEN NOT LAUNCHED</span>'}</div></div></header><div class="channel-about-row"><p>${e(channel.bio)}</p><div class="holder-tag">${records.length} PRESERVED ${records.length === 1 ? "VIDEO" : "VIDEOS"}</div></div><p id="membership-status" class="field-help" aria-live="polite">${channel.mint ? "Holding this creator’s token makes you a subscriber. Videos remain free to watch." : "This creator can launch a token when they are ready."}</p><div class="channel-actions"><button class="btn" data-share-url="https://nikki.run/c/${e(handle)}/">Share channel ↗</button><button class="btn" data-copy="https://nikki.run/c/${e(handle)}/">Copy link</button><a class="text-link" href="/help/?channel=${e(handle)}">Report or get help</a></div>${channel.mint ? `<details class="token-proof"><summary>Check the creator token</summary><p>This mint was checked against its confirmed pump.fun launch and creator wallet. X pairing confirms account control, not content accuracy or token value.</p><dl class="record-details"><dt>TOKEN MINT</dt><dd class="mono">${e(channel.mint)}</dd><dt>CREATOR & FEE RECIPIENT</dt><dd class="mono">${e(channel.wallet)}</dd></dl><div class="btn-row"><button class="btn btn-small" data-copy="${e(channel.mint)}">Copy mint</button><a class="btn btn-small" href="https://solscan.io/token/${e(channel.mint)}" target="_blank" rel="noreferrer">Check on Solana ↗</a></div></details>` : ""}<section class="section-space" data-channel-feed data-channel-handle="${e(handle)}" aria-label="Channel posts" aria-busy="true"><p>Loading posts…</p></section><section class="section-space"><div class="section-heading"><h2>The work<span class="accent">.</span></h2><span class="eyebrow muted">PRESERVED FOR EVERYONE</span></div>${records.length ? `<div class="grid">${records.map((r) => `<a class="card video-card" href="/watch/${e(r.arweaveTx)}/"><div class="thumb"><span class="thumb-play">▶</span><span class="thumb-label">${(Number(r.sizeBytes) / 1e6).toFixed(0)} MB</span></div><div class="meta"><span class="badge published">Preserved</span><h3>${e(r.title)}</h3></div></a>`).join("")}</div>` : '<div class="empty-state"><div class="empty-symbol" aria-hidden="true">[ ▶ ]</div><h3>A first record is worth waiting for.</h3><p>This creator has no preserved videos yet. Records appear only after approval and verified permanent storage.</p></div>'}</section>`;
+    await channelPosts.mount();
   } catch (err) {
     box.innerHTML = `<div class="empty-state"><h1>This channel isn’t available yet.</h1><p>${e(err instanceof Error ? err.message : "")}</p><a class="btn" href="/creators/">Discover creators →</a></div>`;
   }
@@ -782,6 +801,12 @@ const experience = startExperience({
   refreshMe,
   toast,
   connect: walletDialog,
+});
+const channelPosts = startChannelPosts({
+  request,
+  getMe: () => me,
+  connect: walletDialog,
+  toast,
 });
 const communities = startCommunities({
   request,

@@ -9,7 +9,20 @@ import {
   text,
   wallet,
 } from "./common";
-import { resolveCommunityToken, safeCommunityUrl } from "./community-token";
+import {
+  resolveCommunityToken,
+  resolveCommunityTokenInput,
+  safeCommunityUrl,
+} from "./community-token";
+import {
+  assetId,
+  contentMediaUrl,
+  ownedAsset,
+  postContent,
+  serializeContentPost,
+  contentQuotaError,
+  type ContentPostRow,
+} from "./content-media";
 import type { CreatorUser, Env } from "./types";
 
 type ImportRole = "token-authority" | "community-led";
@@ -20,6 +33,9 @@ interface CommunityRow {
   name: string;
   description: string;
   logo_url: string;
+  banner_url: string;
+  logo_asset_id: string | null;
+  banner_asset_id: string | null;
   website_url: string;
   x_url: string;
   telegram_url: string;
@@ -36,32 +52,30 @@ interface CommunityRow {
   member_count: number;
   post_count: number;
 }
-interface PostRow {
-  id: number;
+interface PostRow extends ContentPostRow {
   mint: string;
-  wallet: string;
-  client_id: string;
-  text: string;
-  state: string;
-  created_at: number;
-  display_name: string | null;
-  handle: string | null;
-  avatar_id: string | null;
-  x_username: string | null;
 }
 const communitySelect = `SELECT c.*,u.x_username AS owner_x_username,
   (SELECT count(*) FROM community_members m WHERE m.mint=c.mint) AS member_count,
   (SELECT count(*) FROM community_posts p WHERE p.mint=c.mint AND p.state='visible') AS post_count
   FROM communities c JOIN creator_users u ON u.wallet=c.owner_wallet`;
-const postSelect = `SELECT p.*,u.x_username,cp.display_name,cp.handle,cp.avatar_id
+const postSelect = `SELECT p.*,u.x_username,cp.display_name,cp.handle,cp.avatar_id,a.width AS image_width,a.height AS image_height
   FROM community_posts p JOIN creator_users u ON u.wallet=p.wallet
-  LEFT JOIN creator_profiles cp ON cp.wallet=p.wallet AND cp.published=1`;
+  LEFT JOIN creator_profiles cp ON cp.wallet=p.wallet AND cp.published=1
+  LEFT JOIN content_assets a ON a.id=p.image_id AND a.ready=1`;
 function community(row: CommunityRow) {
   return {
     mint: row.mint,
     name: row.name,
     description: row.description,
-    logoUrl: row.logo_url,
+    logoUrl: row.logo_asset_id
+      ? contentMediaUrl(row.logo_asset_id)
+      : row.logo_url,
+    bannerUrl: row.banner_asset_id
+      ? contentMediaUrl(row.banner_asset_id)
+      : row.banner_url,
+    logoAssetId: row.logo_asset_id,
+    bannerAssetId: row.banner_asset_id,
     websiteUrl: row.website_url,
     xUrl: row.x_url,
     telegramUrl: row.telegram_url,
@@ -85,24 +99,7 @@ function canModerate(env: Env, user: CreatorUser | null, row: CommunityRow) {
     (user.wallet === row.owner_wallet || user.wallet === env.FOUNDER_WALLET)
   );
 }
-function post(row: PostRow, user: CreatorUser | null, moderator: boolean) {
-  return {
-    id: String(row.id),
-    text: row.text,
-    createdAt: row.created_at,
-    author: {
-      wallet: row.wallet,
-      displayName:
-        row.display_name ||
-        (row.x_username ? "@" + row.x_username : row.wallet.slice(0, 6)),
-      handle: row.handle,
-      xUsername: row.x_username,
-      avatarUrl: row.avatar_id ? "/api/creators/media/" + row.avatar_id : null,
-    },
-    canDelete: user?.wallet === row.wallet,
-    canModerate: moderator && user?.wallet !== row.wallet,
-  };
-}
+const post = serializeContentPost;
 async function findCommunity(env: Env, mint: string) {
   const row = await env.CREATORS_DB.prepare(communitySelect + " WHERE c.mint=?")
     .bind(mint)
@@ -130,17 +127,46 @@ function profileUrl(value: unknown, label: string, hosts?: string[]) {
     );
   return valueUrl;
 }
-function profile(data: Record<string, unknown>) {
+function profile(data: Record<string, unknown>, previous?: CommunityRow) {
   const name = text(data.name, 1, 80, "Community name"),
     description = text(data.description ?? "", 0, 1000, "Description"),
     accent = typeof data.accent === "string" ? data.accent : "purple";
   if (!["purple", "lime", "pink", "blue"].includes(accent))
     throw new ApiError(400, "Choose a community colour.");
+  const logoAssetId = assetId(
+      data.logoAssetId === undefined
+        ? previous?.logo_asset_id
+        : data.logoAssetId,
+    ),
+    bannerAssetId = assetId(
+      data.bannerAssetId === undefined
+        ? previous?.banner_asset_id
+        : data.bannerAssetId,
+    );
+  function artworkUrl(
+    value: unknown,
+    id: string | null,
+    fallback: string | undefined,
+    label: string,
+  ) {
+    // The picker returns our local serving URL. It is accepted only with its matching owned asset ID;
+    // imported remote artwork keeps its own safe HTTPS URL as the optional fallback.
+    if (id && value === contentMediaUrl(id)) return fallback || "";
+    return profileUrl(value ?? fallback, label);
+  }
   return {
     name,
     description,
     accent,
-    logoUrl: profileUrl(data.logoUrl, "Logo"),
+    logoUrl: artworkUrl(data.logoUrl, logoAssetId, previous?.logo_url, "Logo"),
+    bannerUrl: artworkUrl(
+      data.bannerUrl,
+      bannerAssetId,
+      previous?.banner_url,
+      "Banner",
+    ),
+    logoAssetId,
+    bannerAssetId,
     websiteUrl: profileUrl(data.websiteUrl, "Website"),
     xUrl: profileUrl(data.xUrl, "X link", [
       "x.com",
@@ -190,7 +216,7 @@ function quotaError(error: unknown): never {
       503,
       "This community feature has reached its early-release capacity. Please contact Nikki.",
     );
-  throw error;
+  contentQuotaError(error);
 }
 
 export async function communitiesApi(
@@ -235,9 +261,10 @@ export async function communitiesApi(
   if (route === "/communities/preview" && req.method === "POST") {
     paired(user);
     const data = await body(req),
-      mint = wallet(data.mint);
+      input = text(data.input ?? data.mint, 1, 2048, "Token address or link");
     await limit(env, "community-preview", user.wallet, 8);
     await limit(env, "community-preview-x", user.x_id!, 8);
+    const { mint } = await resolveCommunityTokenInput(input);
     const existing = await env.CREATORS_DB.prepare(
       communitySelect + " WHERE c.mint=?",
     )
@@ -250,7 +277,12 @@ export async function communitiesApi(
           name: existing.token_name,
           symbol: existing.token_symbol,
           description: existing.description,
-          logoUrl: existing.logo_url,
+          logoUrl: existing.logo_asset_id
+            ? contentMediaUrl(existing.logo_asset_id)
+            : existing.logo_url,
+          bannerUrl: existing.banner_asset_id
+            ? contentMediaUrl(existing.banner_asset_id)
+            : existing.banner_url,
           websiteUrl: existing.website_url,
           xUrl: existing.x_url,
           telegramUrl: existing.telegram_url,
@@ -259,12 +291,17 @@ export async function communitiesApi(
         existingCommunity: mint,
         warnings: ["This token already has a Nikki community."],
       });
-    const token = await resolveToken(env, mint, user.wallet),
+    const token = await resolveToken(env, input, user.wallet),
       role: ImportRole | null = token.actorIsAuthority
         ? "token-authority"
         : token.actorIsHolder
           ? "community-led"
           : null;
+    if (token.mint !== mint)
+      throw new ApiError(
+        409,
+        "This token link changed. Preview it again before importing.",
+      );
     return json({
       token: {
         mint: token.mint,
@@ -272,6 +309,9 @@ export async function communitiesApi(
         symbol: token.symbol,
         description: token.description,
         logoUrl: token.logoUrl,
+        bannerUrl: token.bannerUrl,
+        sourceUrl: token.sourceUrl,
+        sources: token.sources,
         websiteUrl: token.websiteUrl,
         xUrl: token.xUrl,
         telegramUrl: token.telegramUrl,
@@ -284,10 +324,13 @@ export async function communitiesApi(
   if (route === "/communities" && req.method === "POST") {
     paired(user);
     const data = await body(req),
-      mint = wallet(data.mint),
+      input = text(data.input ?? data.mint, 1, 2048, "Token address or link"),
       draft = profile(data);
+    await ownedAsset(env, draft.logoAssetId, user.wallet, "community-logo");
+    await ownedAsset(env, draft.bannerAssetId, user.wallet, "community-banner");
     await limit(env, "community-import", user.wallet, 3, 3600);
     await limit(env, "community-import-x", user.x_id!, 3, 3600);
+    const { mint } = await resolveCommunityTokenInput(input);
     if (
       await env.CREATORS_DB.prepare("SELECT mint FROM communities WHERE mint=?")
         .bind(mint)
@@ -298,12 +341,17 @@ export async function communitiesApi(
         "This token already has a Nikki community. Open it from Communities.",
       );
     // Recheck chain eligibility at creation; never trust preview values from the browser.
-    const token = await resolveToken(env, mint, user.wallet),
+    const token = await resolveToken(env, input, user.wallet),
       role: ImportRole | null = token.actorIsAuthority
         ? "token-authority"
         : token.actorIsHolder
           ? "community-led"
           : null;
+    if (token.mint !== mint)
+      throw new ApiError(
+        409,
+        "This token link changed. Preview it again before importing.",
+      );
     if (!role)
       throw new ApiError(
         403,
@@ -313,7 +361,7 @@ export async function communitiesApi(
     try {
       await env.CREATORS_DB.batch([
         env.CREATORS_DB.prepare(
-          `INSERT INTO communities(mint,owner_wallet,name,description,logo_url,website_url,x_url,telegram_url,accent,token_name,token_symbol,metadata_uri,import_role,authority_wallet,authority_kind,authority_verified_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          `INSERT INTO communities(mint,owner_wallet,name,description,logo_url,website_url,x_url,telegram_url,accent,token_name,token_symbol,metadata_uri,import_role,authority_wallet,authority_kind,authority_verified_at,created_at,updated_at,logo_asset_id,banner_asset_id,banner_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         ).bind(
           mint,
           user.wallet,
@@ -333,6 +381,9 @@ export async function communitiesApi(
           token.actorIsAuthority ? timestamp : null,
           timestamp,
           timestamp,
+          draft.logoAssetId,
+          draft.bannerAssetId,
+          draft.bannerUrl,
         ),
         env.CREATORS_DB.prepare(
           "INSERT INTO community_members(mint,wallet,joined_at) VALUES(?,?,?)",
@@ -388,23 +439,32 @@ export async function communitiesApi(
     const data = await body(req);
     if (data.mint !== undefined && data.mint !== mint)
       throw new ApiError(400, "A community's token address cannot change.");
-    const draft = profile(data);
-    await env.CREATORS_DB.prepare(
-      "UPDATE communities SET name=?,description=?,logo_url=?,website_url=?,x_url=?,telegram_url=?,accent=?,updated_at=? WHERE mint=? AND owner_wallet=?",
-    )
-      .bind(
-        draft.name,
-        draft.description,
-        draft.logoUrl,
-        draft.websiteUrl,
-        draft.xUrl,
-        draft.telegramUrl,
-        draft.accent,
-        now(),
-        mint,
-        user.wallet,
+    const draft = profile(data, row);
+    await ownedAsset(env, draft.logoAssetId, user.wallet, "community-logo");
+    await ownedAsset(env, draft.bannerAssetId, user.wallet, "community-banner");
+    try {
+      await env.CREATORS_DB.prepare(
+        "UPDATE communities SET name=?,description=?,logo_url=?,website_url=?,x_url=?,telegram_url=?,accent=?,updated_at=?,logo_asset_id=?,banner_asset_id=?,banner_url=? WHERE mint=? AND owner_wallet=?",
       )
-      .run();
+        .bind(
+          draft.name,
+          draft.description,
+          draft.logoUrl,
+          draft.websiteUrl,
+          draft.xUrl,
+          draft.telegramUrl,
+          draft.accent,
+          now(),
+          draft.logoAssetId,
+          draft.bannerAssetId,
+          draft.bannerUrl,
+          mint,
+          user.wallet,
+        )
+        .run();
+    } catch (error) {
+      quotaError(error);
+    }
     return json({ community: community(await findCommunity(env, mint)) });
   }
   if (
@@ -453,6 +513,7 @@ export async function communitiesApi(
     const rows = posts.results.slice(0, 25);
     return json({
       posts: rows.map((p) => post(p, user, moderator)),
+      permissions: { canPost: !!user?.x_id, canModerate: moderator },
       nextCursor:
         posts.results.length > 25 ? String(rows[rows.length - 1].id) : null,
     });
@@ -460,10 +521,7 @@ export async function communitiesApi(
   if (parts.length === 3 && parts[2] === "posts" && req.method === "POST") {
     paired(user);
     const data = await body(req),
-      content = text(data.text, 1, 2000, "Post"),
-      clientId = text(data.clientId, 16, 80, "Post identifier");
-    if (!/^[A-Za-z0-9_-]+$/.test(clientId))
-      throw new ApiError(400, "The post identifier is invalid.");
+      { content, imageId, imageAlt, clientId } = postContent(data);
     const previous = await env.CREATORS_DB.prepare(
       postSelect + " WHERE p.wallet=? AND p.client_id=?",
     )
@@ -472,22 +530,28 @@ export async function communitiesApi(
     if (previous) {
       if (previous.state !== "visible")
         throw new ApiError(409, "This post was already removed.");
-      if (previous.mint !== mint || previous.text !== content)
+      if (
+        previous.mint !== mint ||
+        previous.text !== content ||
+        previous.image_id !== imageId ||
+        previous.image_alt !== imageAlt
+      )
         throw new ApiError(
           409,
           "This post identifier was already used. Refresh and try again.",
         );
       return json({ post: post(previous, user, moderator) });
     }
+    await ownedAsset(env, imageId, user.wallet, "post-image");
     await limit(env, "community-post-minute", user.wallet, 5);
     await limit(env, "community-post-day", user.wallet, 50, 86400);
     await limit(env, "community-post-x-minute", user.x_id!, 5);
     await limit(env, "community-post-x-day", user.x_id!, 50, 86400);
     try {
       await env.CREATORS_DB.prepare(
-        "INSERT INTO community_posts(mint,wallet,client_id,text,created_at) VALUES(?,?,?,?,?) ON CONFLICT(wallet,client_id) DO NOTHING",
+        "INSERT INTO community_posts(mint,wallet,client_id,text,created_at,image_id,image_alt) VALUES(?,?,?,?,?,?,?) ON CONFLICT(wallet,client_id) DO NOTHING",
       )
-        .bind(mint, user.wallet, clientId, content, now())
+        .bind(mint, user.wallet, clientId, content, now(), imageId, imageAlt)
         .run();
     } catch (error) {
       quotaError(error);
@@ -501,6 +565,8 @@ export async function communitiesApi(
       !saved ||
       saved.mint !== mint ||
       saved.text !== content ||
+      saved.image_id !== imageId ||
+      saved.image_alt !== imageAlt ||
       saved.state !== "visible"
     )
       throw new ApiError(409, "This post changed. Refresh and try again.");
@@ -529,9 +595,11 @@ export async function communitiesApi(
       return json({ ok: true });
     await env.CREATORS_DB.batch([
       env.CREATORS_DB.prepare(
-        "UPDATE community_posts SET state=?,text=CASE WHEN ? THEN '' ELSE text END,moderated_at=?,moderated_by=? WHERE id=? AND mint=? AND (state='visible' OR (?=1 AND state='hidden'))",
+        "UPDATE community_posts SET state=?,text=CASE WHEN ? THEN '' ELSE text END,image_id=CASE WHEN ? THEN NULL ELSE image_id END,image_alt=CASE WHEN ? THEN '' ELSE image_alt END,moderated_at=?,moderated_by=? WHERE id=? AND mint=? AND (state='visible' OR (?=1 AND state='hidden'))",
       ).bind(
         own ? "deleted" : "hidden",
+        own ? 1 : 0,
+        own ? 1 : 0,
         own ? 1 : 0,
         now(),
         address,

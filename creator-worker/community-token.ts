@@ -15,6 +15,8 @@ const METADATA_PROGRAM = new PublicKey(
   "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
 );
 const MAX_JSON_BYTES = 64 * 1024;
+const MAX_LISTING_BYTES = 256 * 1024;
+const DEX_API = "https://api.dexscreener.com";
 const ZERO = PublicKey.default.toBase58();
 
 export interface CommunityTokenImport {
@@ -23,10 +25,13 @@ export interface CommunityTokenImport {
   symbol: string;
   description: string;
   logoUrl: string;
+  bannerUrl: string;
   websiteUrl: string;
   xUrl: string;
   telegramUrl: string;
   metadataUri: string;
+  sourceUrl: string;
+  sources: string[];
   authorityWallet: string | null;
   authorityKind: string | null;
   actorIsAuthority: boolean;
@@ -93,13 +98,17 @@ function metadataFetchUrl(uri: string) {
   return "";
 }
 
-async function readMetadataJson(url: string) {
+async function readExternalJson(
+  url: string,
+  maximumBytes = MAX_JSON_BYTES,
+  timeoutMs = 8000,
+): Promise<unknown> {
   const controller = new AbortController();
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   const timer = setTimeout(() => {
     controller.abort();
     void reader?.cancel();
-  }, 8000);
+  }, timeoutMs);
   try {
     const response = await fetch(url, {
       redirect: "error",
@@ -110,7 +119,7 @@ async function readMetadataJson(url: string) {
       !response.ok ||
       response.redirected ||
       !response.body ||
-      Number(response.headers.get("content-length") || 0) > MAX_JSON_BYTES
+      Number(response.headers.get("content-length") || 0) > maximumBytes
     ) {
       void response.body?.cancel();
       throw Error("Metadata unavailable");
@@ -123,19 +132,267 @@ async function readMetadataJson(url: string) {
       if (controller.signal.aborted) throw Error("Metadata timeout");
       if (next.done) break;
       length += next.value.length;
-      if (length > MAX_JSON_BYTES) {
+      if (length > maximumBytes) {
         await reader.cancel();
         throw Error("Metadata too large");
       }
       chunks.push(next.value);
     }
-    const data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    if (!data || Array.isArray(data) || typeof data !== "object")
-      throw Error("Invalid metadata");
-    return data as Record<string, unknown>;
+    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
   } finally {
     clearTimeout(timer);
     reader?.releaseLock();
+  }
+}
+
+function object(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+async function readMetadataJson(url: string) {
+  const data = await readExternalJson(url);
+  if (!data || Array.isArray(data) || typeof data !== "object")
+    throw Error("Invalid metadata");
+  return data as Record<string, unknown>;
+}
+
+function tokenAddress(value: unknown) {
+  try {
+    return new PublicKey(wallet(value)).toBase58();
+  } catch {
+    return "";
+  }
+}
+
+export interface CommunityTokenInput {
+  mint: string;
+  sourceUrl: string;
+  source: "mint" | "pump.fun" | "dexscreener";
+}
+
+/** Parse supported links; arbitrary URLs never become server fetch targets. */
+export async function resolveCommunityTokenInput(
+  input: string,
+): Promise<CommunityTokenInput> {
+  const invalid = () =>
+    new ApiError(
+      400,
+      "Paste a Solana token mint, a pump.fun coin link, or a Dexscreener Solana pair link.",
+    );
+  if (typeof input !== "string" || input.length > 2048) throw invalid();
+  const value = input.trim();
+  const mint = tokenAddress(value);
+  if (mint) return { mint, sourceUrl: "", source: "mint" };
+  const safe = safeCommunityUrl(value);
+  if (!safe) throw invalid();
+  const url = new URL(safe);
+  // Disallow encoded paths (including encoded slashes/dot segments). Referral
+  // query parameters are harmless: they are dropped, never forwarded.
+  const pathInput = value.split(/[?#]/, 1)[0];
+  if (pathInput.includes("%") || /\/\.{1,2}(?:\/|$)/.test(pathInput))
+    throw invalid();
+  const host = url.hostname.replace(/^www\./, "");
+  if (host === "pump.fun") {
+    const match = /^\/(?:coin\/)?([1-9A-HJ-NP-Za-km-z]{32,44})\/?$/.exec(
+      url.pathname,
+    );
+    const address = match && tokenAddress(match[1]);
+    if (!address) throw invalid();
+    return {
+      mint: address,
+      sourceUrl: `https://pump.fun/coin/${address}`,
+      source: "pump.fun",
+    };
+  }
+  if (host !== "dexscreener.com") throw invalid();
+  const match = /^\/solana\/([1-9A-HJ-NP-Za-km-z]{32,44})\/?$/.exec(
+    url.pathname,
+  );
+  const pair = match && tokenAddress(match[1]);
+  if (!pair) throw invalid();
+  let data: Record<string, unknown>;
+  try {
+    data = object(
+      await readExternalJson(
+        `${DEX_API}/latest/dex/pairs/solana/${pair}`,
+        MAX_LISTING_BYTES,
+        5000,
+      ),
+    );
+  } catch {
+    throw new ApiError(
+      503,
+      "Dexscreener could not be reached. Try again or paste the token's mint address.",
+    );
+  }
+  const candidates = Array.isArray(data.pairs) ? data.pairs : [];
+  const addresses = new Set(
+    candidates
+      .map(object)
+      .filter(
+        (entry) => entry.chainId === "solana" && entry.pairAddress === pair,
+      )
+      .map((entry) => tokenAddress(object(entry.baseToken).address))
+      .filter(Boolean),
+  );
+  if (addresses.size !== 1)
+    throw new ApiError(
+      400,
+      "This link did not identify one Solana base token. Paste the token's mint address instead.",
+    );
+  return {
+    mint: [...addresses][0],
+    sourceUrl: `https://dexscreener.com/solana/${pair}`,
+    source: "dexscreener",
+  };
+}
+
+interface ListingProfile {
+  name?: string;
+  symbol?: string;
+  description?: string;
+  logoUrl?: string;
+  bannerUrl?: string;
+  websiteUrl?: string;
+  xUrl?: string;
+  telegramUrl?: string;
+  sourceUrl?: string;
+}
+
+function socialFromListing(entries: unknown, platform: "x" | "telegram") {
+  if (!Array.isArray(entries)) return "";
+  for (const entry of entries.slice(0, 30).map(object)) {
+    const kind = clean(entry.type || entry.platform, 30).toLowerCase();
+    if (!(platform === "x" ? ["x", "twitter"] : ["telegram"]).includes(kind))
+      continue;
+    const raw = entry.url || entry.handle;
+    const linked = social(
+      raw,
+      platform === "x" ? ["x.com", "twitter.com"] : ["t.me", "telegram.me"],
+    );
+    if (linked) return linked;
+    // The documented profile may provide a handle instead of a complete URL.
+    if (typeof raw === "string") {
+      const handle = raw.replace(/^@/, "");
+      const valid =
+        platform === "x" ? /^[A-Za-z0-9_]{1,15}$/ : /^[A-Za-z0-9_]{5,32}$/;
+      if (valid.test(handle))
+        return `https://${platform === "x" ? "x.com" : "t.me"}/${handle}`;
+    }
+  }
+  return "";
+}
+
+// Official fixed endpoints: https://docs.dexscreener.com/api/reference .
+// Listing data enriches presentation only; it never establishes ownership.
+async function dexProfile(
+  mint: string,
+  sourceUrl: string,
+  warnings: string[],
+): Promise<ListingProfile> {
+  try {
+    const raw = await readExternalJson(
+      `${DEX_API}/token-pairs/v1/solana/${mint}`,
+      MAX_LISTING_BYTES,
+      5000,
+    );
+    if (!Array.isArray(raw)) throw Error("Invalid token listing");
+    const pairs = raw
+      .slice(0, 200)
+      .map(object)
+      .filter(
+        (entry) =>
+          entry.chainId === "solana" &&
+          object(entry.baseToken).address === mint &&
+          tokenAddress(entry.pairAddress),
+      );
+    // Only the requested mint as base token can supply profile fields. Data on a
+    // quote token's page belongs to that pair's base token and must be ignored.
+    const preferredPair = sourceUrl.startsWith(
+      "https://dexscreener.com/solana/",
+    )
+      ? sourceUrl.split("/").at(-1)
+      : "";
+    pairs.sort((a, b) => {
+      if (
+        (a.pairAddress === preferredPair) !==
+        (b.pairAddress === preferredPair)
+      )
+        return a.pairAddress === preferredPair ? -1 : 1;
+      const liquidity = (entry: Record<string, unknown>) => {
+        const usd = object(entry.liquidity).usd;
+        return typeof usd === "number" && Number.isFinite(usd) && usd > 0
+          ? usd
+          : 0;
+      };
+      return liquidity(b) - liquidity(a);
+    });
+    const pair = pairs[0];
+    if (!pair) return {};
+    const info = object(pair.info);
+    const sites = Array.isArray(info.websites)
+      ? info.websites.slice(0, 30)
+      : [];
+    const result: ListingProfile = {
+      name: clean(object(pair.baseToken).name, 64),
+      symbol: clean(object(pair.baseToken).symbol, 20),
+      description: clean(info.description, 1000),
+      logoUrl: safeCommunityUrl(info.imageUrl),
+      // Some pair responses include the token-profile header as extra data.
+      // Never substitute openGraph/chart imagery for the community banner.
+      bannerUrl: safeCommunityUrl(
+        info.header || info.headerUrl || info.bannerUrl,
+      ),
+      websiteUrl:
+        sites
+          .map((entry) => safeCommunityUrl(object(entry).url))
+          .find(Boolean) || "",
+      xUrl: socialFromListing(info.socials, "x"),
+      telegramUrl: socialFromListing(info.socials, "telegram"),
+      sourceUrl: `https://dexscreener.com/solana/${pair.pairAddress}`,
+    };
+    if (!result.bannerUrl) {
+      // The documented latest-profile feed may supply a header for a recently
+      // listed token. An exact chain+mint match is mandatory; absence is normal.
+      try {
+        const profiles = await readExternalJson(
+          `${DEX_API}/token-profiles/latest/v1`,
+          MAX_LISTING_BYTES,
+          5000,
+        );
+        const profile = (Array.isArray(profiles) ? profiles : [profiles])
+          .map(object)
+          .find(
+            (entry) =>
+              entry.chainId === "solana" && entry.tokenAddress === mint,
+          );
+        if (profile) {
+          result.bannerUrl = safeCommunityUrl(profile.header);
+          result.logoUrl ||= safeCommunityUrl(profile.icon);
+          result.description ||= clean(profile.description, 1000);
+          result.xUrl ||= socialFromListing(profile.links, "x");
+          result.telegramUrl ||= socialFromListing(profile.links, "telegram");
+          const links = Array.isArray(profile.links)
+            ? profile.links.slice(0, 30).map(object)
+            : [];
+          result.websiteUrl ||=
+            links
+              .filter((link) => !link.type || link.type === "website")
+              .map((link) => safeCommunityUrl(link.url))
+              .find(Boolean) || "";
+        }
+      } catch {
+        // Other verified listing fields remain usable when this optional feed fails.
+      }
+    }
+    return result;
+  } catch {
+    warnings.push(
+      "Dexscreener profile details are temporarily unavailable. You can still review the token and upload its artwork from your device.",
+    );
+    return {};
   }
 }
 
@@ -247,10 +504,11 @@ function social(value: unknown, hosts: string[]) {
 
 export async function resolveCommunityToken(
   env: Env,
-  mintAddress: string,
+  tokenInput: string,
   actorWallet?: string,
 ): Promise<CommunityTokenImport> {
-  const mint = new PublicKey(wallet(mintAddress));
+  const input = await resolveCommunityTokenInput(tokenInput);
+  const mint = new PublicKey(input.mint);
   const actor = actorWallet ? wallet(actorWallet) : undefined;
   const c = connection(env);
   await checkMainnet(c);
@@ -361,7 +619,19 @@ export async function resolveCommunityToken(
   for (const creator of metadata?.verifiedCreators || [])
     proofs.push({ wallet: creator, kind: "verified_metadata_creator" });
 
-  const extra = await offchainMetadata(uri, warnings);
+  const [metadataExtra, listing] = await Promise.all([
+    offchainMetadata(uri, warnings),
+    dexProfile(mint.toBase58(), input.sourceUrl, warnings),
+  ]);
+  // Optional identity fields in an external document must not point at a
+  // different token. The fetched document can never grant authority either way.
+  const mismatched =
+    metadataExtra.mint !== undefined && metadataExtra.mint !== mint.toBase58();
+  if (mismatched)
+    warnings.push(
+      "The token's extra metadata referenced a different mint and was skipped.",
+    );
+  const extra = mismatched ? {} : metadataExtra;
   const extensions =
     extra.extensions &&
     typeof extra.extensions === "object" &&
@@ -374,28 +644,53 @@ export async function resolveCommunityToken(
     warnings.push(
       "This token has incomplete on-chain name or symbol metadata. Review its mint and fill in the missing profile details.",
     );
+  name ||= clean(extra.name, 64) || listing.name || "";
+  symbol ||= clean(extra.symbol, 20) || listing.symbol || "";
   if (!proof)
     warnings.push(
       "No supported on-chain creator or metadata authority was found. A token holder can start a clearly labelled community-led space.",
+    );
+  const bannerUrl =
+    safeCommunityUrl(
+      extra.banner || extra.banner_uri || extra.header || extensions.banner,
+    ) ||
+    listing.bannerUrl ||
+    "";
+  if (!bannerUrl)
+    warnings.push(
+      "No banner was provided by the token's available metadata. You can upload one from your device.",
     );
   return {
     mint: mint.toBase58(),
     name,
     symbol,
-    description: clean(extra.description, 1000),
-    logoUrl: safeCommunityUrl(extra.image),
-    websiteUrl: safeCommunityUrl(
-      extra.website || extra.external_url || extensions.website,
-    ),
-    xUrl: social(
-      extra.twitter || extra.x || extensions.twitter || extensions.x,
-      ["x.com", "twitter.com"],
-    ),
-    telegramUrl: social(extra.telegram || extensions.telegram, [
-      "t.me",
-      "telegram.me",
-    ]),
+    description: clean(extra.description, 1000) || listing.description || "",
+    logoUrl: safeCommunityUrl(extra.image) || listing.logoUrl || "",
+    bannerUrl,
+    websiteUrl:
+      safeCommunityUrl(
+        extra.website || extra.external_url || extensions.website,
+      ) ||
+      listing.websiteUrl ||
+      "",
+    xUrl:
+      social(extra.twitter || extra.x || extensions.twitter || extensions.x, [
+        "x.com",
+        "twitter.com",
+      ]) ||
+      listing.xUrl ||
+      "",
+    telegramUrl:
+      social(extra.telegram || extensions.telegram, ["t.me", "telegram.me"]) ||
+      listing.telegramUrl ||
+      "",
     metadataUri: safeCommunityUrl(uri),
+    sourceUrl: input.sourceUrl || listing.sourceUrl || "",
+    sources: [
+      "Solana",
+      ...(Object.keys(extra).length ? ["Token metadata"] : []),
+      ...(listing.sourceUrl ? ["Dexscreener"] : []),
+    ],
     authorityWallet: proof?.wallet || null,
     authorityKind: proof?.kind || null,
     actorIsAuthority:

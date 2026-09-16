@@ -11,6 +11,7 @@ import {
 import { bondingCurvePda, PUMP_PROGRAM_ID } from "@pump-fun/pump-sdk";
 import {
   resolveCommunityToken,
+  resolveCommunityTokenInput,
   safeCommunityUrl,
 } from "../creator-worker/community-token";
 import type { Env } from "../creator-worker/types";
@@ -21,6 +22,7 @@ const METADATA_PROGRAM = new PublicKey(
 const GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
 const RPC = "https://rpc.example.com/solana";
 const URI = "https://arweave.net/" + "a".repeat(43);
+const DEX = "https://api.dexscreener.com";
 const env = { RPC_URL: RPC } as Env;
 const u32 = (value: number) => {
   const result = Buffer.alloc(4);
@@ -87,6 +89,13 @@ function fixture() {
   };
   let offchain: ((init?: RequestInit, url?: string) => Response) | undefined;
   let metadataUrls = [URI];
+  const listingResponses = new Map<string, unknown>([
+    [`${DEX}/token-pairs/v1/solana/${mint.toBase58()}`, []],
+    [`${DEX}/token-profiles/latest/v1`, []],
+  ]);
+  let listingFetch:
+    | ((url: string, init?: RequestInit) => Response | Promise<Response>)
+    | undefined;
   function account(key: PublicKey, owner: PublicKey, data: Buffer) {
     accounts.set(key.toBase58(), {
       data: [data.toString("base64"), "base64"],
@@ -138,12 +147,16 @@ function fixture() {
     const url = String(input);
     if (url !== RPC) {
       calls.push({ url, method: "GET", params: [] });
+      assert.equal(init?.redirect, "error");
+      assert.ok(init?.signal instanceof AbortSignal);
+      if (listingResponses.has(url))
+        return listingFetch
+          ? listingFetch(url, init)
+          : Response.json(listingResponses.get(url));
       assert.ok(
         metadataUrls.includes(url),
         "Only exact allowed metadata URLs may be fetched",
       );
-      assert.equal(init?.redirect, "error");
-      assert.ok(init?.signal instanceof AbortSignal);
       return offchain ? offchain(init, url) : Response.json(extra);
     }
     const request = JSON.parse(String(init?.body));
@@ -213,6 +226,16 @@ function fixture() {
     },
     setExtra: (value: unknown) => {
       extra = value;
+    },
+    setListing: (url: string, value: unknown) =>
+      listingResponses.set(url, value),
+    setListingFetch: (
+      callback: (
+        url: string,
+        init?: RequestInit,
+      ) => Response | Promise<Response>,
+    ) => {
+      listingFetch = callback;
     },
     setMetadataUrls: (value: string[]) => {
       metadataUrls = value;
@@ -410,7 +433,12 @@ test("does not request arbitrary metadata hosts and leaves manual fallback warni
       assert.equal(result.description, "");
       assert.ok(result.warnings.some((w) => w.includes("not supported")));
     }
-    assert.ok(f.calls.every((c) => c.url === RPC));
+    assert.ok(
+      f.calls.every(
+        (c) =>
+          c.url === RPC || c.url === `${DEX}/token-pairs/v1/solana/${f.mint}`,
+      ),
+    );
   } finally {
     f.restore();
   }
@@ -487,7 +515,9 @@ test("an unavailable IPFS gateway retries the identical CID once at a fixed gate
       "Retain the token's metadata reference",
     );
     assert.deepEqual(
-      f.calls.filter((c) => c.method === "GET").map((c) => c.url),
+      f.calls
+        .filter((c) => c.method === "GET" && !c.url.startsWith(DEX))
+        .map((c) => c.url),
       [primary, fallback],
     );
     assert.ok(!result.warnings.some((w) => w.includes("could not be loaded")));
@@ -498,7 +528,8 @@ test("an unavailable IPFS gateway retries the identical CID once at a fixed gate
       unavailable.warnings.some((w) => w.includes("could not be loaded")),
     );
     assert.equal(
-      f.calls.filter((c) => c.method === "GET").length,
+      f.calls.filter((c) => c.method === "GET" && !c.url.startsWith(DEX))
+        .length,
       4,
       "At most two attempts per import",
     );
@@ -532,4 +563,393 @@ test("public URL sanitizer blocks local, credentialed, numeric and alternate-por
     "https://example.com/path",
   );
   assert.equal(safeCommunityUrl("ar://" + "a".repeat(43)), URI);
+});
+
+function dexPair(mint: string, pair = Keypair.generate().publicKey.toBase58()) {
+  return {
+    chainId: "solana",
+    pairAddress: pair,
+    baseToken: { address: mint, name: "Listing name", symbol: "LIST" },
+    quoteToken: { address: Keypair.generate().publicKey.toBase58() },
+    liquidity: { usd: 100 },
+    info: {
+      imageUrl: "https://cdn.example.com/logo.png",
+      header: "https://cdn.example.com/banner.png",
+      description: "A community listing.",
+      websites: [{ url: "https://community.example.com/" }],
+      socials: [
+        { type: "twitter", url: "https://x.com/tokenpeople" },
+        { type: "telegram", url: "https://t.me/tokenpeople" },
+      ],
+    },
+  };
+}
+
+test("mint and pump.fun inputs normalize without fetching or treating referral URLs as identity", async () => {
+  const f = fixture();
+  try {
+    const mint = f.mint.toBase58();
+    assert.deepEqual(await resolveCommunityTokenInput(` ${mint} `), {
+      mint,
+      sourceUrl: "",
+      source: "mint",
+    });
+    for (const url of [
+      `https://pump.fun/coin/${mint}`,
+      `https://www.pump.fun/coin/${mint}/?ref=user#chart`,
+    ]) {
+      assert.deepEqual(await resolveCommunityTokenInput(url), {
+        mint,
+        sourceUrl: `https://pump.fun/coin/${mint}`,
+        source: "pump.fun",
+      });
+    }
+    assert.equal(f.calls.length, 0);
+    const imported = await resolveCommunityToken(
+      env,
+      `https://pump.fun/coin/${mint}`,
+      f.actor.toBase58(),
+    );
+    assert.equal(imported.name, "Existing token");
+    assert.equal(imported.sourceUrl, `https://pump.fun/coin/${mint}`);
+    assert.equal(
+      imported.actorIsAuthority,
+      false,
+      "A pasted Pump link grants no authority",
+    );
+  } finally {
+    f.restore();
+  }
+});
+
+test("Dexscreener links resolve the exact Solana pair base mint and discard tracking parameters", async () => {
+  const f = fixture();
+  try {
+    const pair = dexPair(f.mint.toBase58());
+    f.setListing(`${DEX}/latest/dex/pairs/solana/${pair.pairAddress}`, {
+      pairs: [pair],
+    });
+    const sourceUrl = `https://dexscreener.com/solana/${pair.pairAddress}`;
+    assert.deepEqual(
+      await resolveCommunityTokenInput(sourceUrl + "?utm_source=test#chart"),
+      { mint: f.mint.toBase58(), sourceUrl, source: "dexscreener" },
+    );
+    assert.equal(
+      f.calls[0].url,
+      `${DEX}/latest/dex/pairs/solana/${pair.pairAddress}`,
+    );
+    const imported = await resolveCommunityToken(
+      env,
+      sourceUrl,
+      f.actor.toBase58(),
+    );
+    assert.equal(imported.mint, f.mint.toBase58());
+    assert.equal(imported.actorIsAuthority, false);
+  } finally {
+    f.restore();
+  }
+});
+
+test("unsupported links and URL tricks fail before making a request", async () => {
+  const f = fixture();
+  try {
+    const mint = f.mint.toBase58();
+    for (const input of [
+      `https://pump.fun.evil.com/coin/${mint}`,
+      `https://evil.com/?url=https://pump.fun/coin/${mint}`,
+      `https://pump.fun@evil.com/coin/${mint}`,
+      `https://user:password@pump.fun/coin/${mint}`,
+      `http://pump.fun/coin/${mint}`,
+      `https://pump.fun:8080/coin/${mint}`,
+      `https://pump.fun/coin/%2e%2e/${mint}`,
+      `https://pump.fun/other/../coin/${mint}`,
+      `https://pump.fun\\@localhost/coin/${mint}`,
+      `https://dexscreener.com/ethereum/${mint}`,
+      `https://dexscreener.com/solana/${mint}/extra`,
+      `https://dexscreener.com/solana/not-an-address`,
+      `https://127.0.0.1/${mint}`,
+      `javascript:alert(1)`,
+      `https://pump.fun/coin/${mint}%2Fextra`,
+    ])
+      await assert.rejects(
+        resolveCommunityTokenInput(input),
+        /Paste a Solana token mint/,
+      );
+    assert.equal(f.calls.length, 0);
+  } finally {
+    f.restore();
+  }
+});
+
+test("wrong-chain, mismatched-pair and ambiguous Dexscreener link results never guess a token", async () => {
+  const f = fixture();
+  try {
+    const pair = dexPair(f.mint.toBase58());
+    const api = `${DEX}/latest/dex/pairs/solana/${pair.pairAddress}`;
+    const source = `https://dexscreener.com/solana/${pair.pairAddress}`;
+    for (const pairs of [
+      [],
+      [{ ...pair, chainId: "ethereum" }],
+      [{ ...pair, pairAddress: Keypair.generate().publicKey.toBase58() }],
+      [{ ...pair, baseToken: { address: "not a mint" } }],
+      [
+        pair,
+        {
+          ...pair,
+          baseToken: { address: Keypair.generate().publicKey.toBase58() },
+        },
+      ],
+    ]) {
+      f.setListing(api, { pairs });
+      await assert.rejects(
+        resolveCommunityTokenInput(source),
+        /did not identify one Solana base token/,
+      );
+    }
+  } finally {
+    f.restore();
+  }
+});
+
+test("a Dexscreener outage gives mint fallback while enrichment failures retain verified identity", async () => {
+  const f = fixture();
+  try {
+    const pair = dexPair(f.mint.toBase58());
+    f.setListing(`${DEX}/latest/dex/pairs/solana/${pair.pairAddress}`, {
+      pairs: [pair],
+    });
+    for (const response of [
+      () => new Response(null, { status: 429 }),
+      () =>
+        new Response(null, {
+          status: 302,
+          headers: { Location: "https://localhost/" },
+        }),
+      () => new Response("{}", { headers: { "content-length": "300000" } }),
+      () => new Response(" ".repeat(262145)),
+      () => new Response("<html>Unavailable</html>"),
+      () => {
+        throw Error("Network down");
+      },
+    ]) {
+      f.setListingFetch(response);
+      await assert.rejects(
+        resolveCommunityTokenInput(
+          `https://dexscreener.com/solana/${pair.pairAddress}`,
+        ),
+        /paste the token's mint address/,
+      );
+      const imported = await f.run();
+      assert.equal(imported.name, "Existing token");
+      assert.equal(imported.authorityWallet, f.authority.toBase58());
+      assert.equal(imported.actorIsAuthority, false);
+      assert.ok(
+        imported.warnings.some((message) =>
+          message.includes("Dexscreener profile details"),
+        ),
+      );
+    }
+  } finally {
+    f.restore();
+  }
+});
+
+test("listing enrichment adds artwork and links but canonical token metadata wins", async () => {
+  const f = fixture();
+  try {
+    const pair = dexPair(f.mint.toBase58());
+    f.setListing(`${DEX}/token-pairs/v1/solana/${f.mint}`, [pair]);
+    let imported = await f.run();
+    assert.equal(imported.name, "Existing token");
+    assert.equal(imported.symbol, "OLD");
+    assert.equal(imported.description, "Bring our people together.");
+    assert.equal(imported.xUrl, "https://x.com/existingtoken");
+    assert.equal(imported.bannerUrl, "https://cdn.example.com/banner.png");
+    assert.ok(imported.sources.includes("Dexscreener"));
+    assert.equal(
+      imported.sourceUrl,
+      `https://dexscreener.com/solana/${pair.pairAddress}`,
+    );
+    assert.equal(imported.actorIsAuthority, false);
+    f.setExtra({});
+    imported = await f.run();
+    assert.equal(imported.logoUrl, "https://cdn.example.com/logo.png");
+    assert.equal(imported.websiteUrl, "https://community.example.com/");
+    assert.equal(imported.xUrl, "https://x.com/tokenpeople");
+    assert.equal(imported.telegramUrl, "https://t.me/tokenpeople");
+    f.setExtra({ banner: "https://token.example.com/canonical-banner.png" });
+    assert.equal(
+      (await f.run()).bannerUrl,
+      "https://token.example.com/canonical-banner.png",
+    );
+  } finally {
+    f.restore();
+  }
+});
+
+test("foreign base tokens, quote-token matches and wrong chains cannot supply token artwork", async () => {
+  const f = fixture();
+  try {
+    f.setExtra({});
+    const pair = dexPair(f.mint.toBase58());
+    for (const altered of [
+      { ...pair, chainId: "ethereum" },
+      {
+        ...pair,
+        baseToken: { address: Keypair.generate().publicKey.toBase58() },
+        quoteToken: { address: f.mint.toBase58() },
+      },
+      { ...pair, pairAddress: "not a pair" },
+    ]) {
+      f.setListing(`${DEX}/token-pairs/v1/solana/${f.mint}`, [altered]);
+      const imported = await f.run();
+      assert.equal(imported.logoUrl, "");
+      assert.equal(imported.bannerUrl, "");
+      assert.equal(imported.xUrl, "");
+      assert.ok(!imported.sources.includes("Dexscreener"));
+    }
+  } finally {
+    f.restore();
+  }
+});
+
+test("latest profiles fill a missing banner only for the exact mint and chain", async () => {
+  const f = fixture();
+  try {
+    const pair = dexPair(f.mint.toBase58());
+    pair.info.header = "";
+    f.setListing(`${DEX}/token-pairs/v1/solana/${f.mint}`, [pair]);
+    f.setListing(`${DEX}/token-profiles/latest/v1`, [
+      {
+        chainId: "solana",
+        tokenAddress: Keypair.generate().publicKey.toBase58(),
+        header: "https://evil.example.com/foreign.png",
+      },
+      {
+        chainId: "ethereum",
+        tokenAddress: f.mint.toBase58(),
+        header: "https://evil.example.com/wrong-chain.png",
+      },
+      {
+        chainId: "solana",
+        tokenAddress: f.mint.toBase58(),
+        header: "https://cdn.example.com/profile-header.png",
+      },
+    ]);
+    assert.equal(
+      (await f.run()).bannerUrl,
+      "https://cdn.example.com/profile-header.png",
+    );
+    f.setListing(`${DEX}/token-profiles/latest/v1`, []);
+    const imported = await f.run();
+    assert.equal(imported.bannerUrl, "");
+    assert.ok(
+      imported.warnings.some((message) =>
+        message.includes("No banner was provided"),
+      ),
+    );
+  } finally {
+    f.restore();
+  }
+});
+
+test("untrusted listing links and forged metadata cannot become identity or ownership", async () => {
+  const f = fixture();
+  try {
+    const pair = dexPair(f.mint.toBase58());
+    pair.info.imageUrl = "javascript:alert(1)";
+    pair.info.header = "https://127.0.0.1/private.png";
+    pair.info.websites = [{ url: "https://user:secret@example.com/" }];
+    pair.info.socials = [
+      { type: "twitter", url: "https://x.com.evil.com/imposter" },
+      { type: "telegram", url: "https://localhost/" },
+    ];
+    f.setListing(`${DEX}/token-pairs/v1/solana/${f.mint}`, [pair]);
+    f.setExtra({
+      mint: Keypair.generate().publicKey.toBase58(),
+      name: "Foreign Pump coin",
+      creator: f.actor.toBase58(),
+      banner: "https://foreign.example.com/banner.png",
+    });
+    const imported = await f.run();
+    assert.equal(imported.name, "Existing token");
+    assert.equal(imported.logoUrl, "");
+    assert.equal(imported.bannerUrl, "");
+    assert.equal(imported.websiteUrl, "");
+    assert.equal(imported.xUrl, "");
+    assert.equal(imported.telegramUrl, "");
+    assert.equal(imported.actorIsAuthority, false);
+    assert.ok(
+      imported.warnings.some((message) => message.includes("different mint")),
+    );
+  } finally {
+    f.restore();
+  }
+});
+
+test("documented social handles normalize into links while missing identity can use listing display values", async () => {
+  const f = fixture();
+  try {
+    f.accounts.delete(f.metadataPda.toBase58());
+    const pair = dexPair(f.mint.toBase58());
+    pair.info.socials = [
+      { type: "twitter", url: "@tokenpeople" },
+      { type: "telegram", url: "tokenpeople" },
+    ];
+    f.setListing(`${DEX}/token-pairs/v1/solana/${f.mint}`, [pair]);
+    const imported = await f.run();
+    assert.equal(imported.name, "Listing name");
+    assert.equal(imported.symbol, "LIST");
+    assert.equal(imported.xUrl, "https://x.com/tokenpeople");
+    assert.equal(imported.telegramUrl, "https://t.me/tokenpeople");
+    assert.equal(imported.authorityWallet, null);
+    assert.equal(imported.actorIsAuthority, false);
+    assert.ok(
+      imported.warnings.some((message) =>
+        message.includes("incomplete on-chain"),
+      ),
+    );
+  } finally {
+    f.restore();
+  }
+});
+
+test("legacy Pump coin links normalize and the selected Dexscreener pair keeps its own artwork", async () => {
+  const f = fixture();
+  try {
+    const mint = f.mint.toBase58();
+    assert.equal(
+      (
+        await resolveCommunityTokenInput(
+          `https://pump.fun/${mint}?ref=test%20referral`,
+        )
+      ).sourceUrl,
+      `https://pump.fun/coin/${mint}`,
+    );
+    f.setExtra({});
+    const preferred = dexPair(mint);
+    preferred.info.header = "https://cdn.example.com/chosen-banner.png";
+    const popular = dexPair(mint);
+    popular.liquidity.usd = 1000000;
+    popular.info.header = "https://cdn.example.com/other-banner.png";
+    f.setListing(`${DEX}/latest/dex/pairs/solana/${preferred.pairAddress}`, {
+      pairs: [preferred],
+    });
+    f.setListing(`${DEX}/token-pairs/v1/solana/${mint}`, [popular, preferred]);
+    const imported = await resolveCommunityToken(
+      env,
+      `https://dexscreener.com/solana/${preferred.pairAddress}`,
+      f.actor.toBase58(),
+    );
+    assert.equal(
+      imported.bannerUrl,
+      "https://cdn.example.com/chosen-banner.png",
+    );
+    assert.equal(
+      imported.sourceUrl,
+      `https://dexscreener.com/solana/${preferred.pairAddress}`,
+    );
+  } finally {
+    f.restore();
+  }
 });

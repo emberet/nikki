@@ -62,7 +62,7 @@ export function startExperience(ctx: Context) {
     return true;
   }
   function selectTab(value: string) {
-    const tab = ["channel", "token", "activity"].includes(value)
+    const tab = ["channel", "posts", "token", "activity"].includes(value)
       ? value
       : "channel";
     document.documentElement.dataset.studioTab = tab;
@@ -286,6 +286,8 @@ export function startExperience(ctx: Context) {
         .querySelectorAll<HTMLElement>("[data-private]")
         .forEach((n) => (n.innerHTML = ""));
       $<HTMLFormElement>("#support-form")?.reset();
+      // Reset private drafts when identity changes, then restore only public report context.
+      prefillSupportContext();
     }
     document
       .querySelectorAll<HTMLElement>("[data-founder-only]")
@@ -554,27 +556,51 @@ export function startExperience(ctx: Context) {
     video.addEventListener("ended", () => saveProgress(true));
   }
   if ($("#channel-form")) selectTab(location.hash.slice(1));
-  const params = new URLSearchParams(location.search);
-  if ($("#support-handle"))
-    $<HTMLInputElement>("#support-handle")!.value = (
-      params.get("channel") || ""
-    ).slice(0, 24);
-  if (params.get("topic") === "video" && $("#support-category"))
-    $<HTMLSelectElement>("#support-category")!.value = "Video report";
-  if (params.get("topic") === "community" && $("#support-category")) {
-    $<HTMLSelectElement>("#support-category")!.value = "Community report";
-    const mint = params.get("community") || "",
-      post = params.get("post") || "";
-    if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint) && $("#support-message")) {
-      $<HTMLTextAreaElement>("#support-message")!.value =
-        "Community: " +
-        location.origin +
-        "/communities/" +
-        mint +
-        "/" +
-        (/^[1-9][0-9]{0,15}$/.test(post) ? "\nPost: " + post : "") +
-        "\n\nWhat happened: ";
+  function prefillSupportContext() {
+    const params = new URLSearchParams(location.search);
+    if ($("#support-handle"))
+      $<HTMLInputElement>("#support-handle")!.value = (
+        params.get("channel") || ""
+      ).slice(0, 24);
+    if (params.get("topic") === "video" && $("#support-category"))
+      $<HTMLSelectElement>("#support-category")!.value = "Video report";
+    if (params.get("topic") === "channel-post" && $("#support-category")) {
+      const handle = params.get("channel") || "",
+        post = params.get("post") || "";
+      if (
+        /^[a-z][a-z0-9_]{2,23}$/.test(handle) &&
+        /^[1-9]\d{0,14}$/.test(post) &&
+        $("#support-message")
+      ) {
+        $<HTMLSelectElement>("#support-category")!.value = "Other";
+        $<HTMLTextAreaElement>("#support-message")!.value =
+          "Channel post report: " +
+          location.origin +
+          "/c/" +
+          handle +
+          "/#channel-post-" +
+          post +
+          "\nPost: " +
+          post +
+          "\n\nWhat happened: ";
+      }
+    }
+    if (params.get("topic") === "community" && $("#support-category")) {
+      $<HTMLSelectElement>("#support-category")!.value = "Community report";
+      const mint = params.get("community") || "",
+        post = params.get("post") || "";
+      if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint) && $("#support-message")) {
+        $<HTMLTextAreaElement>("#support-message")!.value =
+          "Community: " +
+          location.origin +
+          "/communities/" +
+          mint +
+          "/" +
+          (/^[1-9][0-9]{0,15}$/.test(post) ? "\nPost: " + post : "") +
+          "\n\nWhat happened: ";
+      }
     }
   }
+  prefillSupportContext();
   return { accountChanged };
 }

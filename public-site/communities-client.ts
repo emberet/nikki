@@ -1,3 +1,10 @@
+import {
+  prepareImage,
+  uploadImage,
+  safeMediaUrl,
+  type UploadedImage,
+} from "./image-upload";
+
 type Context = {
   request: (path: string, data?: unknown) => Promise<any>;
   getMe: () => any;
@@ -9,6 +16,9 @@ type Community = {
   name: string;
   description: string;
   logoUrl: string;
+  bannerUrl: string;
+  logoAssetId: string | null;
+  bannerAssetId: string | null;
   websiteUrl: string;
   xUrl: string;
   telegramUrl: string;
@@ -26,6 +36,13 @@ type Community = {
   postCount: number;
 };
 type Post = {
+  image: {
+    id: string;
+    url: string;
+    width: number;
+    height: number;
+    alt: string;
+  } | null;
   id: string;
   text: string;
   createdAt: number;
@@ -99,7 +116,7 @@ function safeUrl(value: unknown) {
   }
 }
 function logo(value: string, name: string, className = "community-logo") {
-  const url = safeUrl(value);
+  const url = safeMediaUrl(value);
   return `<span class="${className}" aria-hidden="true">${url ? `<img src="${escape(url)}" alt="" width="80" height="80" loading="lazy" referrerpolicy="no-referrer" data-community-image data-fallback="${escape(name.slice(0, 2).toUpperCase())}">` : escape(name.slice(0, 2).toUpperCase())}</span>`;
 }
 const communityLink = (mint: string) =>
@@ -107,9 +124,81 @@ const communityLink = (mint: string) =>
 const empty = (title: string, copy: string, action = "") =>
   `<div class="community-empty"><span class="community-empty-mark" aria-hidden="true">✳</span><h3>${escape(title)}</h3><p>${escape(copy)}</p>${action}</div>`;
 
+const importStorageKey = "nikki.community-import.v2";
+function readImport() {
+  try {
+    const value = JSON.parse(
+      sessionStorage.getItem(importStorageKey) || "null",
+    );
+    if (
+      !value ||
+      typeof value.input !== "string" ||
+      value.input.length > 2048 ||
+      typeof value.at !== "number" ||
+      Date.now() - value.at > 30 * 60_000 ||
+      value.at > Date.now()
+    )
+      return null;
+    return value as { input: string; wallet: string; at: number };
+  } catch {
+    return null;
+  }
+}
+function clearImport() {
+  try {
+    sessionStorage.removeItem(importStorageKey);
+  } catch {}
+}
+function rememberImport(input: string, wallet = "") {
+  let trimmed = input.trim();
+  clearImport();
+  if (!trimmed || trimmed.length > 2048) return;
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      if (
+        url.protocol !== "https:" ||
+        url.username ||
+        url.password ||
+        url.port ||
+        ![
+          "pump.fun",
+          "www.pump.fun",
+          "dexscreener.com",
+          "www.dexscreener.com",
+        ].includes(url.hostname)
+      )
+        return;
+      trimmed = url.origin + url.pathname;
+    } catch {
+      return;
+    }
+  }
+  try {
+    sessionStorage.setItem(
+      importStorageKey,
+      JSON.stringify({ input: trimmed, wallet, at: Date.now() }),
+    );
+  } catch {}
+}
+
 export function startCommunities(ctx: Context) {
   const root = document.querySelector<HTMLElement>("#communities-app");
-  if (!root) return { accountChanged: async () => {} };
+  if (!root)
+    return {
+      accountChanged: async () => {
+        const saved = readImport(),
+          user = ctx.getMe()?.user;
+        if (
+          location.pathname === "/creator-studio/" &&
+          new URLSearchParams(location.search).get("x") === "connected" &&
+          saved?.wallet &&
+          saved.wallet === user?.wallet &&
+          user.xVerified
+        )
+          location.assign("/communities/?import=1");
+      },
+    };
   const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
     root.querySelector<T>(selector);
   const editor = $<HTMLDialogElement>("#community-editor")!;
@@ -132,7 +221,45 @@ export function startCommunities(ctx: Context) {
     query = "",
     directoryLoading = false,
     feedLoading = false;
-  let pendingPost: { text: string; clientId: string } | null = null;
+  let pendingPost: {
+    text: string;
+    clientId: string;
+    imageId?: string;
+    imageAlt?: string;
+  } | null = null;
+  let postImage: { blob: Blob; url: string; uploaded?: UploadedImage } | null =
+    null;
+  let postBusy = false,
+    postImageSequence = 0,
+    profileBusy = 0;
+  let profileImages: Record<
+    "logo" | "banner",
+    { url: string; id: string | null }
+  > = {
+    logo: { url: "", id: null },
+    banner: { url: "", id: null },
+  };
+  const profileImageSequences = { logo: 0, banner: 0 };
+  const profileObjectUrls = new Set<string>();
+  const revokeProfilePreviews = () => {
+    for (const url of profileObjectUrls) URL.revokeObjectURL(url);
+    profileObjectUrls.clear();
+  };
+  const clearPostImage = () => {
+    if (postImage) URL.revokeObjectURL(postImage.url);
+    postImage = null;
+    postImageSequence++;
+  };
+  const lockPost = (locked: boolean) => {
+    postBusy = locked;
+    $("#community-post-form")
+      ?.querySelectorAll<
+        HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement
+      >("input,textarea,button")
+      .forEach((el) => {
+        el.disabled = locked;
+      });
+  };
   let searchTimer: ReturnType<typeof setTimeout>;
   let importRequested =
     new URLSearchParams(location.search).get("import") === "1";
@@ -178,7 +305,7 @@ export function startCommunities(ctx: Context) {
 
   function card(c: Community) {
     const href = communityLink(c.mint);
-    return `<article class="community-card ${tone(c.accent)}"><div class="community-card-top">${logo(c.logoUrl, c.name)}<span class="community-card-symbol">$${escape(c.tokenSymbol)}</span></div><div class="community-card-body">${role(c)}<h3><a href="${href}">${escape(c.name)}</a></h3><p>${escape(c.description || "A new corner of Nikki. Come say hello.")}</p><div class="community-card-bottom"><span>${count(c.memberCount)} ${c.memberCount === 1 ? "member" : "members"} · ${count(c.postCount)} ${c.postCount === 1 ? "post" : "posts"}</span><a class="community-card-arrow" href="${href}" aria-label="Open ${escape(c.name)}">↗</a></div></div></article>`;
+    return `<article class="community-card ${tone(c.accent)}">${safeMediaUrl(c.bannerUrl) ? `<img class="community-card-banner" src="${escape(safeMediaUrl(c.bannerUrl))}" alt="" loading="lazy" referrerpolicy="no-referrer" data-community-image>` : ""}<div class="community-card-top">${logo(c.logoUrl, c.name)}<span class="community-card-symbol">$${escape(c.tokenSymbol)}</span></div><div class="community-card-body">${role(c)}<h3><a href="${href}">${escape(c.name)}</a></h3><p>${escape(c.description || "A new corner of Nikki. Come say hello.")}</p><div class="community-card-bottom"><span>${count(c.memberCount)} ${c.memberCount === 1 ? "member" : "members"} · ${count(c.postCount)} ${c.postCount === 1 ? "post" : "posts"}</span><a class="community-card-arrow" href="${href}" aria-label="Open ${escape(c.name)}">↗</a></div></div></article>`;
   }
 
   async function loadDirectory(more = false) {
@@ -212,7 +339,7 @@ export function startCommunities(ctx: Context) {
             )
           : empty(
               "First here? Make yourself at home.",
-              "Bring an existing Solana token and give its people a place on Nikki. Your first text post is on us. So is every other one.",
+              "Bring an existing Solana token and give its people a place on Nikki. Text and image posts are free. Make yourself at home.",
               '<button class="btn btn-primary" data-community-import>Bring a community ↗</button>',
             );
       $("#communities-more")!.hidden = nextOffset === null;
@@ -264,7 +391,7 @@ export function startCommunities(ctx: Context) {
       return `<div class="community-composer"><h2>Put a name to your words.</h2><p class="field-help">Pair your X account with your wallet to post here. Your posts will show your public profile.</p><a class="btn btn-primary" href="/api/creators/auth/x/start">Pair your X account ↗</a></div>`;
     if (!detail?.permissions.canPost)
       return `<div class="community-composer"><h2>Enjoy the conversation.</h2><p class="field-help">Posting is currently unavailable for this account.</p></div>`;
-    return `<form class="community-composer" id="community-post-form"><label for="community-post-text">A thought, an update, a hello.</label><textarea id="community-post-text" name="text" maxlength="2000" rows="4" placeholder="Give the group chat something good…" required aria-describedby="community-post-help community-post-counter"></textarea><div class="community-composer-bottom"><span id="community-post-counter">0 / 2,000</span><button class="btn btn-primary" type="submit">Post for free ↗</button></div><p id="community-post-help" class="field-help">Public text post. Saved on Nikki, not on-chain. You can delete your own posts; community moderators can remove posts.</p></form>`;
+    return `<form class="community-composer" id="community-post-form"><div class="community-composer-heading"><strong>Say it. Show it.</strong><span>✳ ALWAYS FREE</span></div><label class="sr-only" for="community-post-text">Your post</label><textarea id="community-post-text" name="text" maxlength="2000" rows="3" placeholder="What’s happening in your corner?" aria-describedby="community-post-help community-post-counter"></textarea><div id="community-post-image-slot"></div><div class="community-composer-bottom"><label class="community-image-picker" for="community-post-image"><span aria-hidden="true">▧</span> Add image<input class="sr-only" id="community-post-image" type="file" accept="image/jpeg,image/png,image/webp"></label><span id="community-post-counter">0 / 2,000</span><button class="btn btn-primary" type="submit">Post ↗</button></div><p id="community-post-help" class="field-help">Text + images, free. Saved on Nikki and removable. Permanent video storage is separate.</p></form>`;
   }
 
   function renderDetail() {
@@ -275,7 +402,7 @@ export function startCommunities(ctx: Context) {
         ? `An on-chain token authority was checked when this community was imported${c.authorityVerifiedAt ? " on " + date(c.authorityVerifiedAt) : ""}. This is not proof of the original creator or an endorsement.`
         : "Organized by a community member. This space is not verified as the token’s official team.";
     $("#community-detail")!.innerHTML =
-      `<div class="${tone(c.accent)}"><header class="community-header"><div class="community-banner"><span>YOUR PEOPLE.<br>YOUR LITTLE INTERNET.</span><strong>MAKE SOME<br>GOOD NOISE.</strong></div><div class="community-identity">${logo(c.logoUrl, c.name)}<div class="community-identity-copy"><h1>${escape(c.name)}</h1><div class="community-badges"><span class="community-symbol">$${escape(c.tokenSymbol)}</span>${role(c)}<a class="community-about-jump" href="#community-about">About ↓</a></div></div><button class="btn btn-primary" data-community-join aria-pressed="${detail.joined}">${detail.joined ? "✓ Joined · Leave" : "Join the community ↗"}</button></div></header><div class="community-layout"><section class="community-feed-column" aria-labelledby="community-feed-title"><div class="community-free-bar"><span aria-hidden="true">✳</span><div><strong>Big ideas. Zero posting fees.</strong><p>Text is free. Permanent video storage is paid separately.</p></div></div><div id="community-composer-slot">${composer()}</div><div class="community-feed-title"><h2 id="community-feed-title">The conversation<span class="accent">.</span></h2><button class="community-text-button" data-community-refresh-posts>Refresh ↻</button></div><div id="community-posts" aria-live="polite" aria-busy="true">${empty("Pulling up a seat…", "Loading the conversation.")}</div><button class="btn communities-more" id="community-more-posts" hidden>Earlier posts ↓</button></section><aside class="community-about" id="community-about"><h2>About this corner.</h2><p class="community-description">${escape(c.description || "A community finding its voice. Come be part of the conversation.")}</p><div class="community-stats"><div><strong data-community-member-count>${count(c.memberCount)}</strong><span data-community-member-label>${c.memberCount === 1 ? "member" : "members"}</span></div><div><strong data-community-post-count>${count(c.postCount)}</strong><span data-community-post-label>${c.postCount === 1 ? "post" : "posts"}</span></div></div><p class="field-help">Joining is free. Membership here does not prove token ownership.</p>${links(c) ? `<nav class="community-links" aria-label="Community links">${links(c)}</nav>` : ""}<div class="community-token-address"><span>SOLANA TOKEN · ${escape(c.tokenName)}</span><code>${escape(c.mint)}</code><button class="btn" data-community-copy-mint>Copy token address ↗</button><a class="community-text-button" href="https://solscan.io/token/${encodeURIComponent(c.mint)}" target="_blank" rel="noopener noreferrer">View token on Solana ↗</a></div><p class="community-authority-note">${escape(authorityNote)}</p><p class="community-authority-note">Organized by ${c.ownerXUsername ? `<a href="https://x.com/${encodeURIComponent(c.ownerXUsername)}" target="_blank" rel="noopener noreferrer">@${escape(c.ownerXUsername)}</a>` : escape(short(c.ownerWallet))}. Imported profiles and links are provided by community organizers.</p>${detail.permissions.canEdit ? '<button class="btn" data-community-edit>Edit this community ↗</button>' : ""}<a class="community-text-button" href="/help/?topic=community&community=${encodeURIComponent(c.mint)}">Report this community ↗</a></aside></div></div>`;
+      `<div class="${tone(c.accent)}"><header class="community-header"><div class="community-banner${safeMediaUrl(c.bannerUrl) ? " community-banner-with-image" : ""}">${safeMediaUrl(c.bannerUrl) ? `<img src="${escape(safeMediaUrl(c.bannerUrl))}" alt="${escape(c.name)} community banner" referrerpolicy="no-referrer" data-community-image data-fallback="YOUR PEOPLE. YOUR LITTLE INTERNET.">` : "<span>YOUR PEOPLE.<br>YOUR LITTLE INTERNET.</span><strong>MAKE SOME<br>GOOD NOISE.</strong>"}</div><div class="community-identity">${logo(c.logoUrl, c.name)}<div class="community-identity-copy"><h1>${escape(c.name)}</h1><div class="community-badges"><span class="community-symbol">$${escape(c.tokenSymbol)}</span>${role(c)}<a class="community-about-jump" href="#community-about">About ↓</a></div></div><button class="btn btn-primary" data-community-join aria-pressed="${detail.joined}">${detail.joined ? "✓ Joined · Leave" : "Join the community ↗"}</button></div></header><div class="community-layout"><section class="community-feed-column" aria-labelledby="community-feed-title"><div class="community-free-bar"><span aria-hidden="true">✳</span><div><strong>Big ideas. Zero posting fees.</strong><p>Text + image posts are free. Permanent video storage is paid separately.</p></div></div><div id="community-composer-slot">${composer()}</div><button class="community-floating-post btn btn-primary" data-community-compose aria-label="Write a community post">✎ Post</button><div class="community-feed-title"><h2 id="community-feed-title">The conversation<span class="accent">.</span></h2><button class="community-text-button" data-community-refresh-posts>Refresh ↻</button></div><div id="community-posts" aria-live="polite" aria-busy="true">${empty("Pulling up a seat…", "Loading the conversation.")}</div><button class="btn communities-more" id="community-more-posts" hidden>Earlier posts ↓</button></section><aside class="community-about" id="community-about"><h2>About this corner.</h2><p class="community-description">${escape(c.description || "A community finding its voice. Come be part of the conversation.")}</p><div class="community-stats"><div><strong data-community-member-count>${count(c.memberCount)}</strong><span data-community-member-label>${c.memberCount === 1 ? "member" : "members"}</span></div><div><strong data-community-post-count>${count(c.postCount)}</strong><span data-community-post-label>${c.postCount === 1 ? "post" : "posts"}</span></div></div><p class="field-help">Joining is free. Membership here does not prove token ownership.</p>${links(c) ? `<nav class="community-links" aria-label="Community links">${links(c)}</nav>` : ""}<div class="community-token-address"><span>SOLANA TOKEN · ${escape(c.tokenName)}</span><code>${escape(c.mint)}</code><button class="btn" data-community-copy-mint>Copy token address ↗</button><a class="community-text-button" href="https://solscan.io/token/${encodeURIComponent(c.mint)}" target="_blank" rel="noopener noreferrer">View token on Solana ↗</a></div><p class="community-authority-note">${escape(authorityNote)}</p><p class="community-authority-note">Organized by ${c.ownerXUsername ? `<a href="https://x.com/${encodeURIComponent(c.ownerXUsername)}" target="_blank" rel="noopener noreferrer">@${escape(c.ownerXUsername)}</a>` : escape(short(c.ownerWallet))}. Imported profiles and links are provided by community organizers.</p>${detail.permissions.canEdit ? '<button class="btn" data-community-edit>Edit this community ↗</button>' : ""}<a class="community-text-button" href="/help/?topic=community&community=${encodeURIComponent(c.mint)}">Report this community ↗</a></aside></div></div>`;
   }
 
   async function loadDetail() {
@@ -322,7 +449,7 @@ export function startCommunities(ctx: Context) {
           : "";
     const name =
       a.displayName || (a.xUsername ? "@" + a.xUsername : short(a.wallet));
-    return `<article class="community-post" data-community-post="${escape(p.id)}"><div class="community-post-heading"><span class="community-post-avatar" aria-hidden="true">${avatarUrl ? `<img src="${escape(avatarUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-community-image data-fallback="${escape(name.slice(0, 2).toUpperCase())}">` : escape(name.slice(0, 2).toUpperCase())}</span><div class="community-post-author"><strong>${escape(name)}</strong>${profile ? `<a href="${escape(profile)}"${profile.startsWith("https:") ? ' target="_blank" rel="noopener noreferrer"' : ""}>${escape(a.xUsername ? "@" + a.xUsername : "@" + a.handle)} ↗</a>` : `<span>${escape(short(a.wallet))}</span>`}</div><time datetime="${escape(new Date(p.createdAt * 1000).toISOString())}">${escape(date(p.createdAt))}</time></div><p class="community-post-text">${escape(p.text)}</p><div class="community-post-actions">${p.canDelete || p.canModerate ? `<button class="community-text-button" data-community-remove="${escape(p.id)}">${p.canDelete ? "Delete your post" : "Remove post"}</button>` : `<a class="community-text-button" href="/help/?topic=community&community=${encodeURIComponent(mint)}&post=${encodeURIComponent(p.id)}">Report post</a>`}</div></article>`;
+    return `<article class="community-post" data-community-post="${escape(p.id)}"><div class="community-post-heading"><span class="community-post-avatar" aria-hidden="true">${avatarUrl ? `<img src="${escape(avatarUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-community-image data-fallback="${escape(name.slice(0, 2).toUpperCase())}">` : escape(name.slice(0, 2).toUpperCase())}</span><div class="community-post-author"><strong>${escape(name)}</strong>${profile ? `<a href="${escape(profile)}"${profile.startsWith("https:") ? ' target="_blank" rel="noopener noreferrer"' : ""}>${escape(a.xUsername ? "@" + a.xUsername : "@" + a.handle)} ↗</a>` : `<span>${escape(short(a.wallet))}</span>`}</div><time datetime="${escape(new Date(p.createdAt * 1000).toISOString())}">${escape(date(p.createdAt))}</time></div>${p.text ? `<p class="community-post-text">${escape(p.text)}</p>` : ""}${p.image && safeMediaUrl(p.image.url) ? `<a class="community-post-image-link" href="${escape(safeMediaUrl(p.image.url))}" target="_blank" rel="noopener noreferrer" aria-label="Open post image"><img class="community-post-image" src="${escape(safeMediaUrl(p.image.url))}" alt="${escape(p.image.alt || "Image shared in the community")}" width="${Number(p.image.width) || 800}" height="${Number(p.image.height) || 600}" loading="lazy" referrerpolicy="no-referrer"></a>` : ""}<div class="community-post-actions">${p.canDelete || p.canModerate ? `<button class="community-text-button" data-community-remove="${escape(p.id)}">${p.canDelete ? "Delete your post" : "Remove post"}</button>` : `<a class="community-text-button" href="/help/?topic=community&community=${encodeURIComponent(mint)}&post=${encodeURIComponent(p.id)}">Report post</a>`}</div></article>`;
   }
 
   function renderPosts() {
@@ -393,21 +520,33 @@ export function startCommunities(ctx: Context) {
       ? "[ YOUR SPACE CAN EVOLVE ]"
       : "[ SAME TOKEN. NEW HOME. ]";
     const box = $("#community-editor-content")!;
-    if (!me())
-      box.innerHTML =
-        '<p>Start with your wallet. Pair it with X, then bring your token’s details and community profile to Nikki.</p><button class="btn btn-primary" data-community-connect>Connect wallet ↗</button><p class="field-help">Signing in does not send funds. Importing a community is free.</p>';
-    else if (!me().xVerified)
-      box.innerHTML =
-        '<p>Let people know who is opening the door. Pair your X account before importing a community.</p><a class="btn btn-primary" href="/api/creators/auth/x/start">Pair your X account ↗</a><p class="field-help">Your wallet and X identify you as the organizer. They do not prove that you created a token.</p>';
-    else if (edit && detail?.permissions.canEdit)
+    revokeProfilePreviews();
+    profileBusy = 0;
+    if (edit && me()?.xVerified && detail?.permissions.canEdit)
       renderProfileForm(detail.community);
-    else
-      box.innerHTML =
-        '<p>Paste an existing Solana token’s mint address. We’ll look for its name, logo, and public links. You get to review everything.</p><form id="community-lookup-form"><label for="community-mint">Token mint address</label><input id="community-mint" name="mint" autocomplete="off" autocapitalize="off" spellcheck="false" minlength="32" maxlength="44" pattern="[1-9A-HJ-NP-Za-km-z]{32,44}" required placeholder="Paste the full Solana address"><p class="field-help">Use a token-authority wallet or a wallet that already holds this token. Importing creates a community profile and does not move tokens.</p><div class="btn-row"><button class="btn btn-primary" type="submit">Find my token ↗</button></div></form>';
+    else {
+      const saved = readImport();
+      const savedInput =
+        saved && (!saved.wallet || saved.wallet === me()?.wallet)
+          ? saved.input
+          : "";
+      box.innerHTML = `<p>Drop a pump.fun or Dexscreener link. We’ll bring over the token’s name, logo, banner, and public links where available. Review it, then make it yours.</p><form id="community-lookup-form"><label for="community-mint">Token link or Solana mint address</label><input id="community-mint" name="mint" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="2048" required value="${escape(savedInput)}" placeholder="pump.fun/coin/… or dexscreener.com/solana/…"><p class="field-help">Use a token-authority wallet or a wallet that holds this token. Importing is free and does not move tokens.</p><div class="btn-row"><button class="btn btn-primary" type="submit">${!me() ? "Connect wallet & continue ↗" : !me().xVerified ? "Pair X & import details ↗" : "Find my token ↗"}</button></div><p class="field-help">Your wallet + X identify you as the organizer. You always review the profile before it goes live.</p></form>`;
+    }
     if (!editor.open) editor.showModal();
   }
 
   function renderProfileForm(values: any) {
+    revokeProfilePreviews();
+    profileImages = {
+      logo: {
+        url: safeMediaUrl(values.logoUrl),
+        id: values.logoAssetId || null,
+      },
+      banner: {
+        url: safeMediaUrl(values.bannerUrl),
+        id: values.bannerAssetId || null,
+      },
+    };
     const token = editing
       ? {
           name: values.tokenName,
@@ -430,7 +569,47 @@ export function startCommunities(ctx: Context) {
         )
         .join(
           "",
-        )}</fieldset><details class="community-editor-links" open><summary>Logo & community links</summary>${field("logoUrl", "Logo image URL", "https://…/your-logo.png")}<p class="field-help">Use a public HTTPS image. Imported links are optional; review them before publishing.</p>${field("websiteUrl", "Website", "https://your-community.com")}${field("xUrl", "X profile", "https://x.com/yourcommunity")}${field("telegramUrl", "Telegram", "https://t.me/yourcommunity")}</details>${!editing ? '<label class="community-check"><input type="checkbox" name="reviewed" required><span>I’ve reviewed this profile and its links, and I’m not presenting a community-led space as an official token team.</span></label>' : ""}<div class="btn-row"><button class="btn btn-primary" type="submit">${editing ? "Save community ↗" : "Open our corner ↗"}</button>${!editing ? '<button class="btn" type="button" data-community-start-over>Different token</button>' : ""}</div><p class="field-help">${editing ? "Your community profile can be updated again later." : "Free to import. Free to post text. No token transaction is created."}</p></form>`;
+        )}</fieldset><div class="community-profile-art"><div><span class="community-field-label">Logo</span><div id="community-logo-preview">${profileArt("logo")}</div><label class="community-upload-button" for="community-logo-file">Upload logo ↗<input class="sr-only" id="community-logo-file" data-community-art="logo" type="file" accept="image/jpeg,image/png,image/webp"></label><button class="community-text-button" type="button" data-community-clear-art="logo">Remove logo</button></div><div><span class="community-field-label">Banner</span><div id="community-banner-preview">${profileArt("banner")}</div><label class="community-upload-button" for="community-banner-file">Upload banner ↗<input class="sr-only" id="community-banner-file" data-community-art="banner" type="file" accept="image/jpeg,image/png,image/webp"></label><button class="community-text-button" type="button" data-community-clear-art="banner">Remove banner</button></div></div><p class="field-help">Pick images from your device. JPG, PNG, or WebP, up to 20 MB. We resize them for you.</p><details class="community-editor-links" open><summary>Community links</summary><p class="field-help">Available token links are filled in automatically. Review or update them before publishing.</p>${field("websiteUrl", "Website", "https://your-community.com")}${field("xUrl", "X profile", "https://x.com/yourcommunity")}${field("telegramUrl", "Telegram", "https://t.me/yourcommunity")}</details>${!editing ? '<label class="community-check"><input type="checkbox" name="reviewed" required><span>I’ve reviewed this profile and its links, and I’m not presenting a community-led space as an official token team.</span></label>' : ""}<div class="btn-row"><button class="btn btn-primary" type="submit">${editing ? "Save community ↗" : "Open our corner ↗"}</button>${!editing ? '<button class="btn" type="button" data-community-start-over>Different token</button>' : ""}</div><p class="field-help">${editing ? "Your community profile can be updated again later." : "Free to import. Free text + image posts. No token transaction is created."}</p></form>`;
+  }
+
+  function profileArt(kind: "logo" | "banner") {
+    const value = profileImages[kind];
+    return `<div class="community-art-preview community-art-${kind}">${value.url ? `<img src="${escape(value.url)}" alt="${kind === "logo" ? "Community logo preview" : "Community banner preview"}" referrerpolicy="no-referrer">` : `<span>${kind === "logo" ? "✳" : "YOUR SPACE. YOUR LOOK."}</span>`}</div>`;
+  }
+  function renderPostImage(alt = "") {
+    const slot = $("#community-post-image-slot");
+    if (!slot) return;
+    slot.innerHTML = postImage
+      ? `<div class="community-image-draft"><img src="${escape(postImage.url)}" alt="Selected post image"><button class="community-image-remove" type="button" data-community-remove-image aria-label="Remove selected image">×</button><label for="community-image-alt">Describe this image <span>(optional, helps people using screen readers)</span></label><input id="community-image-alt" name="imageAlt" maxlength="240" value="${escape(alt)}" placeholder="What’s in the picture?"></div>`
+      : "";
+  }
+  async function lookupToken(
+    input: string,
+    version = epoch,
+    editorVersion = editorSequence,
+  ) {
+    rememberImport(input, me()?.wallet);
+    const result = await ctx.request("/communities/preview", {
+      mint: input.trim(),
+    });
+    if (!same(version) || editorVersion !== editorSequence) return;
+    preview = result;
+    if (result.existingCommunity) {
+      clearImport();
+      $("#community-editor-content")!.innerHTML = empty(
+        "Your people are already here.",
+        "This token already has a community on Nikki. Open its space to join the conversation.",
+        `<a class="btn btn-primary" href="${communityLink(result.existingCommunity)}">Visit the community ↗</a>`,
+      );
+      return;
+    }
+    if (!result.eligibility.canImport)
+      throw Error(
+        "Use a wallet with an on-chain token authority or a wallet that already holds this token to import it.",
+      );
+    clearImport();
+    renderProfileForm(result.token);
+    $("#community-name")?.focus();
   }
 
   root.addEventListener("submit", (event) => {
@@ -455,46 +634,47 @@ export function startCommunities(ctx: Context) {
       button,
       async () => {
         const data = new FormData(form);
-        if (!me()) throw Error("Connect your wallet to continue.");
-        if (!me().xVerified) throw Error("Pair your X account to continue.");
         if (form.id === "community-lookup-form") {
-          const result = await ctx.request("/communities/preview", {
-            mint: String(data.get("mint") || "").trim(),
-          });
-          if (!same(version) || editorVersion !== editorSequence) return;
-          preview = result;
-          if (result.existingCommunity) {
-            $("#community-editor-content")!.innerHTML = empty(
-              "Your people are already here.",
-              "This token already has a community on Nikki. Open its space to join the conversation.",
-              `<a class="btn btn-primary" href="${communityLink(result.existingCommunity)}">Visit the community ↗</a>`,
-            );
+          const input = String(data.get("mint") || "").trim();
+          rememberImport(input, me()?.wallet);
+          if (!me()) {
+            importRequested = true;
+            editor.close();
+            ctx.connect();
             return;
           }
-          if (!result.eligibility.canImport)
-            throw Error(
-              "Use a wallet with an on-chain token authority or a wallet that already holds this token to import it.",
-            );
-          renderProfileForm(result.token);
-          $("#community-name")?.focus();
+          if (!me().xVerified) {
+            location.assign("/api/creators/auth/x/start");
+            return;
+          }
+          await lookupToken(input, version, editorVersion);
         } else if (form.id === "community-profile-form") {
+          if (!me()?.xVerified)
+            throw Error("Pair your wallet and X to continue.");
+          if (profileBusy)
+            throw Error("Your image is still uploading. Give it a moment.");
           if (!editingAtSubmit && (!importedMint || !data.get("reviewed")))
             throw Error("Review the profile before opening your community.");
-          const values: Record<string, string> = {};
+          const values: Record<string, string | null> = {};
           for (const name of [
             "name",
             "description",
-            "logoUrl",
             "websiteUrl",
             "xUrl",
             "telegramUrl",
             "accent",
           ])
             values[name] = String(data.get(name) || "").trim();
-          for (const name of ["logoUrl", "websiteUrl", "xUrl", "telegramUrl"])
+          values.logoUrl = profileImages.logo.id ? "" : profileImages.logo.url;
+          values.bannerUrl = profileImages.banner.id
+            ? ""
+            : profileImages.banner.url;
+          values.logoAssetId = profileImages.logo.id;
+          values.bannerAssetId = profileImages.banner.id;
+          for (const name of ["websiteUrl", "xUrl", "telegramUrl"])
             if (values[name] && !safeUrl(values[name]))
               throw Error(
-                "Use a public HTTPS address for your logo and links.",
+                "Use a public HTTPS address for your community links.",
               );
           const result = await ctx.request(
             editingAtSubmit ? endpoint() + "/profile" : "/communities",
@@ -508,8 +688,11 @@ export function startCommunities(ctx: Context) {
           if (detail) detail.community = result.community;
           const draft =
             $<HTMLTextAreaElement>("#community-post-text")?.value || "";
+          const draftAlt =
+            $<HTMLInputElement>("#community-image-alt")?.value || "";
           editor.close();
           renderDetail();
+          renderPostImage(draftAlt);
           const textarea = $<HTMLTextAreaElement>("#community-post-text");
           if (textarea) {
             textarea.value = draft;
@@ -521,12 +704,38 @@ export function startCommunities(ctx: Context) {
         } else {
           if (!detail?.permissions.canPost)
             throw Error("Posting is unavailable for this account.");
+          if (postBusy) return;
           const text = String(data.get("text") || "").trim();
-          if (!text) throw Error("Add a little something before posting.");
-          if (!pendingPost || pendingPost.text !== text)
-            pendingPost = { text, clientId: crypto.randomUUID() };
-          const result = await ctx.request(endpoint() + "/posts", pendingPost);
-          if (!same(version)) return;
+          const imageAlt = String(data.get("imageAlt") || "").trim();
+          if (!text && !postImage)
+            throw Error("Add a thought or an image before posting.");
+          const selected = postImage;
+          lockPost(true);
+          let result: any;
+          try {
+            if (selected && !selected.uploaded)
+              selected.uploaded = await uploadImage(
+                selected.blob,
+                "post-image",
+              );
+            if (!same(version)) return;
+            const imageId = selected?.uploaded?.id;
+            if (
+              !pendingPost ||
+              pendingPost.text !== text ||
+              pendingPost.imageId !== imageId ||
+              (pendingPost.imageAlt || "") !== imageAlt
+            )
+              pendingPost = {
+                text,
+                clientId: crypto.randomUUID(),
+                ...(imageId ? { imageId, imageAlt } : {}),
+              };
+            result = await ctx.request(endpoint() + "/posts", pendingPost);
+            if (!same(version)) return;
+          } finally {
+            if (same(version)) lockPost(false);
+          }
           // A response begun before this mutation must not replace the new feed.
           feedSequence++;
           feedLoading = false;
@@ -539,7 +748,9 @@ export function startCommunities(ctx: Context) {
             ...posts.filter((post) => post.id !== result.post.id),
           ];
           pendingPost = null;
-          // Preserve text entered while the previous post was being sent.
+          clearPostImage();
+          renderPostImage();
+          // Fields were locked while posting, so the successful draft can reset.
           const textarea = $<HTMLTextAreaElement>("#community-post-text");
           if (textarea?.value.trim() === text) form.reset();
           updateCounter();
@@ -590,6 +801,98 @@ export function startCommunities(ctx: Context) {
     }
   });
 
+  root.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    if (input.id === "community-post-image") {
+      if (postBusy) return;
+      const version = epoch,
+        sequence = ++postImageSequence;
+      lockPost(true);
+      void (async () => {
+        try {
+          const blob = await prepareImage(file, { kind: "post-image" });
+          if (!same(version) || sequence !== postImageSequence) return;
+          clearPostImage();
+          postImage = { blob, url: URL.createObjectURL(blob) };
+          pendingPost = null;
+          renderPostImage();
+        } catch (err) {
+          if (same(version))
+            ctx.toast(
+              err instanceof Error
+                ? err.message
+                : "That image could not be prepared.",
+            );
+        } finally {
+          if (same(version)) lockPost(false);
+          input.value = "";
+        }
+      })();
+    }
+    const kind = input.dataset.communityArt;
+    if (kind === "logo" || kind === "banner") {
+      const version = epoch,
+        editorVersion = editorSequence,
+        sequence = ++profileImageSequences[kind];
+      profileBusy++;
+      input.disabled = true;
+      const submit = $<HTMLButtonElement>(
+        '#community-profile-form button[type="submit"]',
+      );
+      if (submit) submit.disabled = true;
+      message("Making your " + kind + " look good…");
+      void (async () => {
+        let objectUrl = "";
+        const current = () =>
+          same(version) &&
+          editorVersion === editorSequence &&
+          sequence === profileImageSequences[kind];
+        try {
+          const blob = await prepareImage(file, {
+            kind: kind === "logo" ? "community-logo" : "community-banner",
+          });
+          if (!current()) return;
+          objectUrl = URL.createObjectURL(blob);
+          profileObjectUrls.add(objectUrl);
+          const target = $("#community-" + kind + "-preview");
+          if (target)
+            target.innerHTML = `<div class="community-art-preview community-art-${kind}"><img src="${escape(objectUrl)}" alt="New ${kind} preview"></div>`;
+          const uploaded = await uploadImage(
+            blob,
+            kind === "logo" ? "community-logo" : "community-banner",
+          );
+          if (!current()) return;
+          profileImages[kind] = { url: uploaded.url, id: uploaded.id };
+          if (target) target.innerHTML = profileArt(kind);
+          message("Image ready. Save the profile to make it live.");
+        } catch (err) {
+          if (current()) {
+            message(
+              err instanceof Error
+                ? err.message
+                : "Your image could not be uploaded.",
+            );
+            const target = $("#community-" + kind + "-preview");
+            if (target) target.innerHTML = profileArt(kind);
+          }
+        } finally {
+          if (objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+            profileObjectUrls.delete(objectUrl);
+          }
+          if (same(version) && editorVersion === editorSequence) {
+            profileBusy = Math.max(0, profileBusy - 1);
+            input.disabled = false;
+            if (submit) submit.disabled = profileBusy > 0;
+          }
+          input.value = "";
+        }
+      })();
+    }
+  });
+
   root.addEventListener(
     "error",
     (event) => {
@@ -625,6 +928,7 @@ export function startCommunities(ctx: Context) {
 
   editor.addEventListener("close", () => {
     editorSequence++;
+    revokeProfilePreviews();
   });
 
   root.addEventListener("click", (event) => {
@@ -635,7 +939,31 @@ export function startCommunities(ctx: Context) {
       target.hasAttribute("data-community-start-over")
     )
       openEditor();
-    if (target.hasAttribute("data-community-edit")) openEditor(true);
+    if (target.hasAttribute("data-community-edit")) {
+      if (postBusy) ctx.toast("Your post is on its way. Give it a moment.");
+      else openEditor(true);
+    }
+    if (target.hasAttribute("data-community-compose")) {
+      $("#community-composer-slot")?.scrollIntoView({
+        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+        block: "center",
+      });
+      $("#community-post-text")?.focus({ preventScroll: true });
+    }
+    if (target.hasAttribute("data-community-remove-image") && !postBusy) {
+      clearPostImage();
+      pendingPost = null;
+      renderPostImage();
+    }
+    const clearArt = target.dataset.communityClearArt;
+    if ((clearArt === "logo" || clearArt === "banner") && !profileBusy) {
+      profileImageSequences[clearArt]++;
+      profileImages[clearArt] = { url: "", id: null };
+      const slot = $("#community-" + clearArt + "-preview");
+      if (slot) slot.innerHTML = profileArt(clearArt);
+    }
     if (target.hasAttribute("data-community-connect")) {
       editor.close();
       ctx.connect();
@@ -732,6 +1060,9 @@ export function startCommunities(ctx: Context) {
       feedSequence++;
       preview = null;
       pendingPost = null;
+      clearPostImage();
+      postBusy = false;
+      revokeProfilePreviews();
       detail = null;
       posts = [];
       nextCursor = null;
@@ -747,11 +1078,31 @@ export function startCommunities(ctx: Context) {
             "Refreshing your community access.",
           );
       }
+      const refreshVersion = epoch,
+        refreshEditorVersion = editorSequence;
       if (directoryView) await loadDirectory();
       else await loadDetail();
-      if (importRequested) {
+      if (!same(refreshVersion) || refreshEditorVersion !== editorSequence)
+        return;
+      const saved = readImport();
+      if (saved?.wallet && user?.wallet && saved.wallet !== user.wallet)
+        clearImport();
+      if (
+        importRequested ||
+        (saved && saved.wallet === user?.wallet && user?.xVerified)
+      ) {
         importRequested = false;
         openEditor();
+        if (
+          saved &&
+          (!saved.wallet || saved.wallet === user?.wallet) &&
+          user?.xVerified
+        ) {
+          const button = $<HTMLButtonElement>(
+            '#community-lookup-form button[type="submit"]',
+          );
+          void action(button, () => lookupToken(saved.input), true);
+        }
       }
     },
   };

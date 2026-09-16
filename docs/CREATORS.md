@@ -1,6 +1,6 @@
 # Public creator platform
 
-**Rollout status:** The public creator platform is hosted at `nikki.run` on Cloudflare Pages. X and dedicated mainnet RPC secrets are configured, D1 migrations 0001/0002 are applied, R2 channel-image storage is connected, and creator token transactions are enabled. Public uploads and NIKKI voting remain closed. See the release upgrade and validation boundaries below.
+**Rollout status:** The public creator platform is hosted at `nikki.run` on Cloudflare Pages. X and dedicated mainnet RPC secrets are configured, D1 migrations 0001–0003 are applied, R2 image storage is connected, and creator token transactions are enabled. The first founder drop is permanently live. General public permanent-video submissions and NIKKI voting remain closed; free text/image posts have a separate publishing flow. The current code adds migration 0004 for those posts and community artwork; its deployment verification is tracked with this release. See the current and historical validation boundaries below.
 
 ## Scope
 
@@ -10,7 +10,27 @@ Wallet signatures establish opaque, hashed, 24-hour sessions. X OAuth 2.0 uses P
 
 Published videos stay freely retrievable. Holding any positive raw balance of a channel's verified token makes that wallet a subscriber. Both SPL and Token-2022 accounts are queried at finalized commitment and summed with integer precision. No holder counts or income figures are invented. The subscriptions page lists channels held by the signed-in wallet.
 
-Creator tokens are distinct from future NIKKI voting rights. Video submissions remain closed for the founding phase; the founder's first video is still pending.
+Creator tokens are distinct from future NIKKI voting rights. General video submissions remain closed for the founding phase. The founder's first drop, **“Nikki is live?”**, is published to the permanent archive: video `OD5bThQU9SCsX-_5fJ2Q9HTfjpqBTExMaHVOTUjmKoc`, metadata `S-GcrFCCefS4uWoRVRe4f6do_3xxQtTFAam-oScgSdY`. Later drafts are not permanent records until their own preservation flow completes.
+
+## Free channel posts and community imports
+
+Every published wallet-and-X channel can share free text and image posts without launching a token, holding a token or paying a Nikki posting fee. The **Post** button opens a composer with text, one optional device image and an optional image description. Text-only and image-only posts are supported. Channel pages display their creator's posts; only that channel's owner can publish there. Community feeds also support text/images, with the existing joined-wallet and paired-X requirements. Anyone can read public posts.
+
+Text is stored in D1 and uploaded images in the existing `CREATOR_MEDIA` R2 bucket. These posts can be removed and are not Arweave/permanent archive records. Channel authors can delete their posts and the founder can hide them; community authors, organizers and founder retain their existing removal/moderation roles. Retrying the same post request does not create duplicate posts. Hiding a post or unpublishing a channel removes that reference's public image access; previously downloaded copies cannot be recalled. Permanent video approval and storage payment remain separate.
+
+Existing Solana token communities can import from a mint, pump.fun coin link or Dexscreener Solana pair link after pairing X. Available token name, logo, banner and public links are filled in for review, with onchain identity taking priority. The token input survives the sign-in/pairing return flow. Device upload controls let organizers replace the logo/banner without hosting an image URL. Missing source artwork stays blank until provided; external X links never prove ownership of the linked X account. See [COMMUNITIES.md](COMMUNITIES.md) for provider checks and import eligibility.
+
+### Posting and image allowances
+
+- Each post supports 2,000 text characters, one image and a 240-character image description. Per wallet and paired X identity, each feed family permits five posts/minute and 50/day.
+- Channel post records are capped at 25,000 total and 1,000 per author. The corresponding community caps are 25,000 total, 5,000 per community and 1,000 per author. Hidden/deleted records still count toward these early-release allowances.
+- The new community/post picker accepts JPG, PNG or WebP up to 20 MiB/60 million decoded pixels, and re-encodes JPEGs before upload. Browser output targets: community logo 512 px/128 KiB, banner 1,600 px/384 KiB, post image 1,600 px/512 KiB. The Worker independently validates JPEGs and bounds bytes/dimensions.
+- New community artwork/post images share 20 MiB per wallet and 256 MiB total. Upload limits are 20/hour per wallet and X identity, and 40/hour per IP. These allowances are separate from the earlier channel avatar/cover quotas below. A capacity error does not initiate a payment.
+- Image ownership and attachment kind are verified in the API and SQL triggers. Unattached uploads are private to their owner. Unreferenced assets become eligible for cleanup after 24 hours, with bounded cleanup during later uploads; moderated records retain their referenced assets. New content-image responses use `no-store`.
+
+### Current release validation
+
+All 95 automated tests, TypeScript and the public build pass. Coverage includes provider-link parsing/failures, preserved authority checks, channel/community post permissions and idempotency, image ownership, visibility after removal and capacity enforcement. Local X identities are fixtures; these checks do not establish a new real-user OAuth round trip. Deployment and browser QA are recorded separately when completed. Earlier validation notes below describe their respective historical releases.
 
 ## Cloudflare deployment
 
@@ -52,11 +72,11 @@ Set `TOKEN_LAUNCH_ENABLED=false` and redeploy to pause new prepared/submitted tr
 - If the mint key was lost after reloading, check the original intent. Discard only an unlaunched, expired draft; a launched token cannot be replaced.
 - A mint that exists while its original signature is unavailable requires operator reconciliation. Do not delete the database row to bypass this check.
 
-## Validation boundaries
+## Historical validation boundaries — initial creator release
 
 Automated tests use generated keys, SQLite-backed D1 fixtures, mocked X/RPC responses and real SDK instruction builders. They cover signature replay/browser binding, origin checks, profile publication/ownership, X state/session binding, exact integer holdings, transaction substitution/signature rejection, persisted-signature recovery, expiry, competing draft actions, and native fee instruction selection. Local Wrangler and production HTTP checks verified real Workers startup, wallet login/logout, private draft persistence locally, live holder lookups, X authorization redirect settings, static routes and 404s. The temporary production test wallet had no public profile or transaction and was removed after validation.
 
-No funded launch, trading, fee claim, real video preservation or real-user X OAuth round trip was performed by automated deployment. An unsigned mainnet launch simulation exercised the insufficient-SOL refusal; no transaction was broadcast. No browser interaction/visual QA was requested or performed. The optional WebMCP creator-search surface is feature-detected; a supported validation context was unavailable, so its browser contract is not claimed as verified.
+At the initial creator release, automated deployment performed no funded launch, trading, fee claim, real video preservation or real-user X OAuth round trip. An unsigned mainnet launch simulation exercised the insufficient-SOL refusal; no transaction was broadcast. That initial validation did not include browser interaction/visual QA. The optional WebMCP creator-search surface was feature-detected; a supported validation context was unavailable, so its browser contract was not claimed as verified. The first founder video was preserved later, as recorded in Scope above.
 
 ## Release experience upgrade
 
@@ -73,4 +93,6 @@ No funded launch, trading, fee claim, real video preservation or real-user X OAu
 
 Run `node scripts/backup-creators.mjs` before schema changes. It exports the remote D1 database into ignored `.backups/creators/` with mode 0600, restores the SQL into an isolated in-memory database, and checks integrity and foreign keys. Export files contain private account/support/session data: keep them private. This validates a D1 export; it does not back up R2 objects or replace Arweave verification. Keep a separate secure copy of required backup files for machine-loss recovery.
 
-The upgrade passed 27 unit/security tests and the existing 28 integration checks, TypeScript and both application builds. The remote pre-migration database export also passed an isolated restore check. First-video captions, chapters, real playback delivery, funded creator transactions, and actual mobile-wallet/X return journeys still need the user's content/devices; no real completion is claimed for those flows.
+### Historical validation — release experience upgrade
+
+That upgrade passed 27 unit/security tests and the existing 28 integration checks, TypeScript and both application builds. Its remote pre-migration database export passed an isolated restore check. At that stage, first-video captions, chapters, real playback delivery, funded creator transactions and actual mobile-wallet/X return journeys had not been validated by those checks. The first founder drop was subsequently preserved; its completion does not establish funded-token or real-device OAuth validation for the current release.
