@@ -50,6 +50,8 @@ Retain this package and the original masters in `/Users/srinjoydas/Downloads/nik
 
 ## Public export and validation
 
+The Creator drop and its watch page display the creator’s X link, `https://x.com/nikkistreams`, and creator token mint `GxoppHqopqWPHAMzAw9QsbjyPzRwHUG5TNzvcjB7pump`, with Copy CA and pump.fun links. Finalized mainnet reads verified Token-2022 metadata Nikki / NIKKI and an official Pump curve whose creator matches the founder wallet. These are current website profile details, separate from the unchanged signed archive. This display update does not enroll the token in application holder subscriptions or enable community governance. Fee rates are dynamic and are not displayed as fixed promises.
+
 `npm run build:public` now exports exactly one verified founding record. The build requires the published record’s title, byte count, and SHA-256 to match the prepared launch film before adding its homepage Creator drop. The homepage uses the permanent Arweave video URL and links to the watch page; the local MP4 is never copied into `dist-public/`.
 
 Completed export checks:

@@ -271,6 +271,60 @@
 .creator-social:hover {
   color: var(--green);
 }
+.nikki-creator-token {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid #745292;
+  background: #21152e;
+  max-width: 540px;
+  min-width: 0;
+}
+.nikki-token-label {
+  margin: 0 0 12px;
+  color: #ef99cd;
+  font:
+    0.6875rem/1.5 Space,
+    monospace;
+  letter-spacing: 0.07em;
+}
+.nikki-token-address {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  color: #ececf1;
+  font:
+    0.6875rem/1.7 Space,
+    monospace;
+}
+.nikki-token-address > span {
+  color: #b6aebd;
+  flex-shrink: 0;
+}
+.nikki-token-address code {
+  font: inherit;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  user-select: all;
+}
+.nikki-token-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 14px;
+}
+.nikki-token-actions .text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: #dcff79;
+  font-size: 0.8125rem;
+}
+.nikki-token-actions .text-link:hover {
+  color: #ef99cd;
+}
 .channel-card-bottom {
   display: flex;
   justify-content: space-between;

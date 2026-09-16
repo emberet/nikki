@@ -438,7 +438,7 @@ export function startExperience(ctx: Context) {
         void safeTask(async () => {
           try {
             await navigator.clipboard.writeText(url);
-            ctx.toast("Link copied. Pass it on. ↗");
+            ctx.toast(b.dataset.copySuccess || "Link copied. Pass it on. ↗");
           } catch {
             const box = $<HTMLDialogElement>("#copy-dialog");
             if (box) {
