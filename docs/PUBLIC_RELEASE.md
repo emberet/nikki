@@ -6,14 +6,14 @@
 - Public origin: `https://nikki.run`. Cloudflare confirmed **Active / SSL enabled** on 15 September 2026.
 - Cloudflare hostname: `https://nikki-run.pages.dev`.
 - Apex DNS: CNAME `@` → `nikki-run.pages.dev`, managed through Pages custom domains.
-- The archive still contains zero video records; the first creator drop is staged locally, awaiting Arweave confirmation after signed upload.
+- The archive contains one verified founding video: **Nikki is live?**, also featured in the homepage Creator drop.
 - Public creator accounts use the Pages advanced-mode Worker and `nikki-creators` D1 database.
 
-The public site includes creator channels linked to wallet/X, token-holder subscriptions, and explicit wallet-signed pump.fun token launch and fee collection. Creator tokens are separate from the future NIKKI governance token. The Node video publishing application remains a private operator studio. No token launch, fee collection, or permanent storage payment was executed by the deployment agent. No paid hosting plan was purchased.
+The public site includes creator channels linked to wallet/X, token-holder subscriptions, and explicit wallet-signed pump.fun token launch and fee collection. Creator tokens are separate from the future NIKKI governance token. The Node video publishing application remains a private operator studio. The user funded the first film’s permanent storage by card and signed its founder approval; the worker then uploaded and verified the film and signed record. No token launch or fee collection was executed by the deployment agent. No paid hosting plan was purchased.
 
 See [creator deployment and recovery](CREATORS.md) for D1, secrets, transaction controls, and validation limits.
 
-The creator upgrade is deployed as `36642dd1.nikki-run.pages.dev` from code commit `8f7b01f`. X and dedicated mainnet RPC secrets are configured, D1 is bound, and `TOKEN_LAUNCH_ENABLED=true` is effective. Production HTTP checks verified signed wallet login, live holder lookups, X authorization redirects, anonymous access controls, static pages, headers, and 404s.
+The first verified Creator drop is deployed at `https://19ada16e.nikki-run.pages.dev` and `https://nikki-run.pages.dev`. X and dedicated mainnet RPC secrets are configured, D1 is bound, and `TOKEN_LAUNCH_ENABLED=true` is effective. Earlier production HTTP checks verified signed wallet login, live holder lookups, X authorization redirects, and anonymous access controls. The current deployment passed archive, homepage, watch page, poster, headers, and 404 checks.
 
 ## Rebuild the public archive
 
@@ -25,13 +25,13 @@ The creator upgrade is deployed as `36642dd1.nikki-run.pages.dev` from code comm
 
 `scripts/build-public.ts` generates the public pages, watch pages, JSON catalog, headers, and sitemap. Styling reuses `app/globals.css` plus public release overrides. Public image and font assets come from the explicit `public/images` and `public/fonts` directories. Font licenses are included.
 
-## Prepared first creator drop
+## Published first creator drop
 
-The launch film is now prepared locally with the caption **Nikki is live?**, with storage funded, founder approval signed, and both objects uploaded; Arweave confirmation is pending. See [the staged drop and resume steps](CREATOR_DROP.md). The public archive remains empty until preservation is verified; the private preview must not be deployed.
+The launch film is published with the caption **Nikki is live?**. The video and signed metadata passed Arweave block-inclusion and full retrieved-byte/hash verification, and the database recorded publication at `2026-09-16T19:08:55.897Z`. See [the permanent IDs and release evidence](CREATOR_DROP.md). The homepage plays the Arweave video and links to `/watch/OD5bThQU9SCsX-_5fJ2Q9HTfjpqBTExMaHVOTUjmKoc/`. Local originals, receipts, keys, and the private preview are excluded from deployment.
 
-## Publish the first video after funding
+## Founder publication flow (completed)
 
-The prepared film’s title, context, recording date, source, language, and file must be reviewed before its permanent publication. The configured founder wallet is `FcRL7KJYC1h1HLMbwZELZftxkZFAg4v5cgAKNqfFfiUC`.
+The first film completed the flow below. This documents the process; do not repeat its payment, upload, or signature, or reset its reservation. The configured founder wallet is `FcRL7KJYC1h1HLMbwZELZftxkZFAg4v5cgAKNqfFfiUC`.
 
 1. Run the private studio and worker locally. Keep their origin local; they are not hosted at the public static domain.
 2. Configure a separate storage signer with prepaid Turbo credits. Keep keys outside the repository. Configure and verify storage before setting `PUBLISHING_ENABLED=true`. Do not launch the token or enable voting for this step.
@@ -40,7 +40,7 @@ The prepared film’s title, context, recording date, source, language, and file
 5. The worker uploads the video and signed metadata. It marks the record published only after both objects have block inclusion and pass full size and SHA-256 retrieval checks. The project’s prepaid storage balance covers the first record; no creator payment transfer is required.
 6. Once verified, rebuild and redeploy the static archive. Its first watch page includes the original file, permanent metadata, founder signature, and fingerprint.
 
-Permanent storage has not been exercised with a real video yet. If preservation is interrupted, follow `OPERATIONS.md`; do not upload an additional video or reset the founding reservation to bypass an uncertain receipt. Metadata-only completion after a confirmed partial upload is an operator recovery task that must be resolved before retrying.
+The 2,644,637-byte, 15-second founding film completed real permanent storage and retrieval checks. This does not validate representative 1 GB uploads or community payment/recovery flows. For any future interrupted preservation, follow `OPERATIONS.md`; do not upload an additional video or reset the founding reservation to bypass an uncertain receipt. Metadata-only completion after a confirmed partial upload remains an operator recovery task.
 
 ## Storage pricing preview
 
@@ -56,11 +56,12 @@ This is a size-based preview, not a payment quote. It includes a small video sto
 - Signature-aware public export tests, founder wallet gating, bounded request bodies.
 - Export inspected for private files, broken internal links, inline scripts, and fabricated records.
 - Deployed Pages routes return 200; unknown route returns 404; CSP and `nosniff` headers are present.
-- Pricing update: current Turbo rates verified in the Cloudflare local runtime; desktop, 390 px and 320 px layouts, size presets, keyboard slider input, and fee disclosure checked in browser. This does not replace the outstanding real-video publishing acceptance check.
+- Pricing update: current Turbo rates verified in the Cloudflare local runtime; desktop, 390 px and 320 px layouts, size presets, keyboard slider input, and fee disclosure checked in browser.
+- First film: both permanent objects verified through block inclusion and full retrieval/hash checks. The public export contains exactly one signed record and no private files; the deployed Creator drop completed 15-second playback from Arweave at 1080 × 1350. See `CREATOR_DROP.md` for current playback and gateway details.
 
 ## Next community release
 
-Do not enable public submissions or payments merely because the static site is live. The NIKKI token, complete RPC snapshot support, hosted upload storage and worker, payment-attempt coordination across tabs, live storage acceptance, and operational recovery still require the later release work described in `OPERATIONS.md`.
+Do not enable public submissions or payments merely because the static site is live. The NIKKI token, complete RPC snapshot support, hosted upload storage and worker, payment-attempt coordination across tabs, large-file/community-flow acceptance, and operational recovery still require the later release work described in `OPERATIONS.md`.
 
 ## Application release upgrade
 

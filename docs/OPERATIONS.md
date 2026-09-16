@@ -2,7 +2,7 @@
 
 ## Public founding release
 
-The public website uses Cloudflare Pages project `nikki-run`, serving the generated `dist-public/` archive. Creator channels, wallet sessions, X pairing, pump.fun launch/claim transactions, and holder subscriptions run in a separate Cloudflare Worker with D1. Video uploads, storage payments, and NIKKI voting remain closed. See [creator operations](CREATORS.md). See [public release instructions](PUBLIC_RELEASE.md). The first video will be supplied later.
+The public website uses Cloudflare Pages project `nikki-run`, serving the generated `dist-public/` archive. Creator channels, wallet sessions, X pairing, pump.fun launch/claim transactions, and holder subscriptions run in a separate Cloudflare Worker with D1. Public video uploads, storage payments, and NIKKI voting remain closed. See [creator operations](CREATORS.md) and [public release instructions](PUBLIC_RELEASE.md). The first founder video, **“Nikki is live?”**, is preserved on Arweave; its video and signed metadata passed block-inclusion and full retrieval/hash checks. See [first-record evidence](CREATOR_DROP.md). Do not repeat its payment, signature, or upload.
 
 ## Private studio deployment model
 
@@ -51,7 +51,7 @@ The treasury is excluded by a private hash comparison. This hides its address fr
 
 ## Pricing and storage
 
-The Turbo adapter is the implemented candidate storage integration. It has not yet passed live upload acceptance tests. Prices are fetched for both the video and JSON archive record, with 16 KiB per-item overhead allowance. Decimal SOL prices are converted exactly to lamports. Quotes expire after 15 minutes; the wallet pays Solana's transaction fee separately.
+The Turbo adapter completed a live upload of the 2,644,637-byte founding film and its signed JSON record. Both objects passed Arweave block-inclusion and full retrieval/hash verification. This validates the small founder flow; representative 1 GB uploads, community payments, and failure recovery still need live acceptance checks. Prices are fetched for both the video and JSON archive record, with 16 KiB per-item overhead allowance. Decimal SOL prices are converted exactly to lamports. Quotes expire after 15 minutes; the wallet pays Solana's transaction fee separately.
 
 Storage credits must already be funded. Nikki never automatically tops up or transfers treasury funds. Creator payments arrive in the operational payment wallet; they do not automatically replenish Turbo. An operator must manage that balance and any SOL conversion risk. Quotes are estimates; prepaid balance checks do not reserve provider credits, so concurrent jobs can wait for funding.
 
@@ -61,7 +61,7 @@ No creator charge occurs before community approval. A verified payment changes t
 
 ## Failure recovery
 
-Known first-video acceptance item: if the video receipt exists but metadata upload is uncertain or missing, the singleton founding record remains reserved. Do not reset it or start another video upload. Reconcile provider receipts; creating a confirmed-missing metadata item is still an operator task. The reconciliation command never uploads or sends funds.
+If a video receipt exists but metadata upload is uncertain or missing, the singleton founding record remains reserved. Do not reset it or start another video upload. Reconcile provider receipts; creating a confirmed-missing metadata item is still an operator task. The reconciliation command never uploads or sends funds. The first founding record completed both uploads and verification; it needs no recovery.
 
 - **Interrupted private upload:** retry the same submission in the open studio. The server returns the current byte offset. Reloading the page currently loses the selected local file and in-memory upload session; abandoned uploads expire.
 - **Wallet sent payment, browser disconnected:** the signature is saved in browser storage when available. Paste the existing signature into “Recover your payment.” Do not pay again.
@@ -93,7 +93,7 @@ A moderator must actually watch the private preview. Container checks alone do n
 2. Complete a real X OAuth login and verify account-link consent.
 3. Validate the selected RPC's full snapshot support and rate limits for the actual mint.
 4. Test a small real SOL payment, quote expiry, recovery, and refund handling.
-5. Test both Turbo uploads, block confirmation, and independent retrieval.
+5. The small founding film passed both Turbo uploads, block confirmation, and independent retrieval. Exercise the community payment-to-preservation path and interrupted-upload recovery before opening public access.
 6. Test a representative real video up to 1 GB, playback, seeking, and interrupted networks on desktop and mobile.
 7. Run browser interaction and accessibility checks.
 8. Validate backup restoration, worker restarts, disk alerts, request throttling, and host costs against the $200 bootstrap budget.

@@ -2,7 +2,7 @@
 
 A neo-brutalist video archive for preserving human history and knowledge.
 
-**Status: creator release live at https://nikki.run on Cloudflare Pages.** Wallet-and-X channels, pump.fun creator tokens, token-holder subscriptions, and creator fee collection are implemented. The public archive starts empty; the founder’s video will be added later. Public video uploads, storage payments, and NIKKI voting are closed until the later community release. The private Node studio and preservation worker stay on the operator’s machine. No real payment or permanent upload has been made during deployment.
+**Status: creator release live at https://nikki.run on Cloudflare Pages.** Wallet-and-X channels, pump.fun creator tokens, token-holder subscriptions, and creator fee collection are implemented. The first founding record, **“Nikki is live?”**, is preserved on Arweave and appears in the homepage Creator drop and public archive. Its video and signed metadata passed block-inclusion and full retrieval/hash verification. Public video uploads, storage payments, and NIKKI voting are closed until the later community release. The private Node studio and preservation worker stay on the operator’s machine. The user funded the first record’s storage by card and signed its founder publication approval.
 
 ## Public release
 
@@ -44,7 +44,7 @@ npm run test:integration
 
 The integration script uses generated wallets, an isolated temporary database, a local RPC fixture, and no real payments or storage uploads. It checks authentication replay, upload limits, access control, election outcomes, historical payment recovery, and worker retention.
 
-The 1 GB boundary and streaming/chunk design are checked; a representative real 1 GB video has **not** been uploaded to permanent storage or playback-tested. X credentials are configured in Cloudflare; a real user OAuth round trip and funded token launch/fee claim have not been exercised by the deployment agent. Browser interaction testing has not been performed.
+The 15-second founding film (2,644,637 bytes) passed real permanent-storage verification; its Creator drop was checked in desktop and mobile browser layouts. See [the first record’s release evidence](docs/CREATOR_DROP.md). The 1 GB boundary and streaming/chunk design are checked; a representative real 1 GB video has **not** been uploaded to permanent storage or playback-tested. X credentials are configured in Cloudflare; a real user OAuth round trip and funded token launch/fee claim have not been exercised by the deployment agent.
 
 ## Before the community launch
 
