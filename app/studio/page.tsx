@@ -166,7 +166,7 @@ export default function Studio() {
         );
       } else if (launch.releaseMode === "founder")
         setNotice(
-          "Your founding video is uploaded. Sign its publication below once permanent storage is configured.",
+          "Your creator drop is uploaded. Sign its publication below once permanent storage is configured.",
         );
       else
         setNotice(
@@ -190,7 +190,7 @@ export default function Studio() {
         confirmPermanent: true,
       });
       setNotice(
-        "Your signed founding record is queued for preservation. The project’s prepaid storage credits cover this publication.",
+        "Your signed creator drop is queued for preservation. The project’s prepaid storage credits cover this publication.",
       );
     });
   const requestQuote = (v: Submission) =>
@@ -281,7 +281,7 @@ export default function Studio() {
               <h2>Your work. A lasting record.</h2>
               <p>
                 {launch.releaseMode === "founder"
-                  ? "Connect the configured founder wallet to prepare Nikki’s first video."
+                  ? "Connect the configured founder wallet to prepare a Nikki creator drop."
                   : "Connect a Solana wallet to submit a video and track its community review. Holding NIKKI is required only for voting."}
               </p>
               <SignInButton />
@@ -327,7 +327,7 @@ export default function Studio() {
         <>
           {launch.releaseMode === "founder" && (
             <div className="notice" style={{ marginBottom: 24 }}>
-              This launch preserves the founder’s first video. Community voting
+              This release preserves approved founder drops. Community voting
               and public submissions open after the NIKKI token launch.{" "}
               {canUpload
                 ? "Your founder wallet has upload access."
@@ -657,7 +657,7 @@ export default function Studio() {
                           disabled={!!busy}
                           onClick={() => publishFounding(v)}
                         >
-                          Sign & preserve founding record ↗
+                          Sign & preserve creator drop ↗
                         </button>
                       )}
                     {v.status === "approved" &&

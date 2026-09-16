@@ -2,13 +2,23 @@ import { createHash } from "crypto";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 import { PublicKey } from "@solana/web3.js";
-import type { Video } from "@prisma/client";
+import type { Prisma, Video } from "@prisma/client";
 import { appOrigin, HttpError } from "./http";
 import { db } from "./db";
 import { requireFounder } from "./release";
 import { requireWorkerReady } from "./health";
 import { ensureStorageFunded, publishingEnabled } from "./storage";
-export function founderMessage(video: Video, wallet: string, issuedAt: string) {
+import {
+  founderReleaseSlot,
+  type FounderReleaseSlot,
+  type FounderSubmission,
+} from "./founder-release-slot";
+
+export function founderMessage(
+  video: Video & { founderReleaseSlot?: FounderReleaseSlot },
+  wallet: string,
+  issuedAt: string,
+) {
   const packageHash = createHash("sha256")
     .update(
       JSON.stringify({
@@ -26,7 +36,9 @@ export function founderMessage(video: Video, wallet: string, issuedAt: string) {
     )
     .digest("hex");
   return [
-    "Publish Nikki’s founding record",
+    video.founderReleaseSlot === "creator-drop-002"
+      ? "Publish Nikki’s creator drop 002"
+      : "Publish Nikki’s founding record",
     "Origin: " + appOrigin(),
     "Creator: " + wallet,
     "Submission: " + video.id,
@@ -36,10 +48,29 @@ export function founderMessage(video: Video, wallet: string, issuedAt: string) {
     "Issued: " + issuedAt,
   ].join("\n");
 }
+
+async function submissionSlot(
+  video: Video,
+  wallet: string,
+  client: Pick<Prisma.TransactionClient, "founderRecord"> = db,
+) {
+  const [founding, second] = await Promise.all([
+    client.founderRecord.findUnique({
+      where: { id: "founding-record" },
+      include: { video: { include: { creator: true } } },
+    }),
+    client.founderRecord.findUnique({
+      where: { id: "creator-drop-002" },
+      select: { id: true },
+    }),
+  ]);
+  return founderReleaseSlot(video, wallet, founding, second);
+}
+
 export async function founderSubmission(
   videoId: string,
   user: { id: string; wallet: string },
-) {
+): Promise<FounderSubmission> {
   requireFounder(user.wallet);
   const video = await db.video.findUnique({ where: { id: videoId } });
   if (
@@ -51,20 +82,18 @@ export async function founderSubmission(
   )
     throw new HttpError(
       409,
-      "Complete your video upload before approving the founding record.",
+      "Complete your video upload before approving this creator drop.",
     );
-  if (await db.founderRecord.findUnique({ where: { id: "founding-record" } }))
-    throw new HttpError(
-      409,
-      "The founding record has already been reserved or published.",
-    );
-  return video;
+  return {
+    ...video,
+    founderReleaseSlot: await submissionSlot(video, user.wallet),
+  };
 }
 export async function founderServiceReady(bytes: number) {
   if (!publishingEnabled())
     throw new HttpError(503, "Permanent storage has not been configured yet.");
   await requireWorkerReady();
-  // The project’s prepaid credits cover the founding record, including signed metadata.
+  // Project prepaid credits cover the authorized drop, including signed metadata.
   await ensureStorageFunded([bytes, 32768]);
 }
 export async function queueFoundingRecord(
@@ -101,10 +130,27 @@ export async function queueFoundingRecord(
     );
   await founderServiceReady(Number(video.sizeBytes));
   await db.$transaction(async (tx) => {
-    if (await tx.founderRecord.findUnique({ where: { id: "founding-record" } }))
+    const current = await tx.video.findUnique({ where: { id: videoId } });
+    if (
+      !current ||
+      current.creatorId !== user.id ||
+      current.status !== "snapshot_pending" ||
+      !current.sha256 ||
+      !current.filePath
+    )
+      throw new HttpError(409, "This submission is no longer ready.");
+    const slot = await submissionSlot(current, user.wallet, tx);
+    if (
+      slot !== video.founderReleaseSlot ||
+      founderMessage(
+        { ...current, founderReleaseSlot: slot },
+        user.wallet,
+        issuedAt,
+      ) !== message
+    )
       throw new HttpError(
         409,
-        "The founding record has already been reserved.",
+        "This submission changed after its publication confirmation.",
       );
     const claimed = await tx.video.updateMany({
       where: {
@@ -123,7 +169,7 @@ export async function queueFoundingRecord(
       throw new HttpError(409, "This submission is no longer ready.");
     await tx.founderRecord.create({
       data: {
-        id: "founding-record",
+        id: slot,
         videoId,
         wallet: user.wallet,
         message,

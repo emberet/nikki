@@ -2,30 +2,69 @@ import { escapeHtml as e } from "../lib/public-record";
 import { nikkiSocialLink } from "./nikki-social";
 import { nikkiCreatorToken } from "./nikki-token";
 
-type CreatorDropOptions = {
+export type CreatorDropTranscriptEntry = {
+  time: string;
+  text: string;
+};
+
+export type CreatorDropOptions = {
   src: string;
   title: string;
   preview: boolean;
   watchUrl?: string;
+  id?: string;
+  number?: number | string;
+  poster?: string;
+  /** Plain text. Newlines become line breaks. */
+  intro?: string;
+  durationSeconds?: number;
+  transcript?: readonly CreatorDropTranscriptEntry[];
+  filmLabel?: string;
+  description?: string;
 };
+
+const launchTranscript: readonly CreatorDropTranscriptEntry[] = [
+  { time: "00:00", text: "Good stories. Deserve more." },
+  { time: "00:02", text: "Meet Nikki. A thing for forever." },
+  { time: "00:06", text: "Big ideas. Real stories. Your people." },
+  { time: "00:09", text: "Creator tokens. Hold = subscribe." },
+  {
+    time: "00:11",
+    text: "Nikki. Find your people. nikki.run. Creator channels are live.",
+  },
+];
 
 export function creatorDrop({
   src,
   title,
   preview,
   watchUrl,
+  id = "creator-drop",
+  number = 1,
+  poster = "/images/nikki-launch-cover.png",
+  intro = "Fifteen seconds. A little beautiful trouble.\nA thing for forever.",
+  durationSeconds = 15,
+  transcript = launchTranscript,
+  filmLabel = "PRESS PLAY. MEET NIKKI.",
+  description = "A 15-second animated introduction to Nikki, with electronic music and no spoken dialogue.",
 }: CreatorDropOptions) {
-  return `<section id="creator-drop" class="creator-drop" aria-labelledby="creator-drop-title">
+  const duration = Math.max(0, Math.floor(durationSeconds));
+  const durationLabel = `${String(Math.floor(duration / 60)).padStart(2, "0")}:${String(duration % 60).padStart(2, "0")}`;
+  const titleId = `${id}-title`;
+  const statusId = `${id}-status`;
+  const audioId = `${id}-audio`;
+
+  return `<section id="${e(id)}" class="creator-drop" aria-labelledby="${e(titleId)}">
     <div class="creator-drop-copy">
-      <p class="creator-drop-kicker"><span aria-hidden="true">✦</span> CREATOR DROP / 001</p>
+      <p class="creator-drop-kicker"><span aria-hidden="true">✦</span> CREATOR DROP / ${e(String(number).padStart(3, "0"))}</p>
       <div class="creator-drop-byline"><img src="/images/nikki-logo.jpg" width="44" height="44" alt="" loading="lazy"><span><strong>Nikki</strong><span>FOUNDER DROP</span></span>${nikkiSocialLink()}</div>
-      <h2 id="creator-drop-title">${e(title)}</h2>
-      <p class="creator-drop-intro">Fifteen seconds. A little beautiful trouble.<br>A thing for forever.</p>
-      <p id="creator-drop-status" class="creator-drop-status${preview ? " is-preview" : ""}"><span aria-hidden="true">${preview ? "◌" : "✓"}</span> ${preview ? "Private preview · awaiting permanent storage" : "Permanent storage verified"}</p>
+      <h2 id="${e(titleId)}">${e(title)}</h2>
+      <p class="creator-drop-intro">${intro.split(/\r?\n/).map(e).join("<br>")}</p>
+      <p id="${e(statusId)}" class="creator-drop-status${preview ? " is-preview" : ""}"><span aria-hidden="true">${preview ? "◌" : "✓"}</span> ${preview ? "Private preview · awaiting permanent storage" : "Permanent storage verified"}</p>
       ${!preview && watchUrl ? `<a class="creator-drop-record" href="${e(watchUrl)}">View the permanent record <span aria-hidden="true">↗</span></a>` : ""}
       ${nikkiCreatorToken()}
-      <details class="creator-drop-transcript"><summary>Read the film</summary><p>A 15-second animated introduction to Nikki, with electronic music and no spoken dialogue.</p><ol><li><span>00:00</span> Good stories. Deserve more.</li><li><span>00:02</span> Meet Nikki. A thing for forever.</li><li><span>00:06</span> Big ideas. Real stories. Your people.</li><li><span>00:09</span> Creator tokens. Hold = subscribe.</li><li><span>00:11</span> Nikki. Find your people. nikki.run. Creator channels are live.</li></ol></details>
+      <details class="creator-drop-transcript"><summary>Read the film</summary><p>${e(description)}</p><ol>${transcript.map(({ time, text }) => `<li><span>${e(time)}</span> ${e(text)}</li>`).join("")}</ol></details>
     </div>
-    <figure class="creator-drop-film"><div class="creator-drop-film-label"><span>PRESS PLAY. MEET NIKKI.</span><span>00:15</span></div><video class="creator-drop-video" controls playsinline preload="none" width="1080" height="1350" poster="/images/nikki-launch-cover.png" aria-labelledby="creator-drop-title" aria-describedby="creator-drop-status creator-drop-audio"><source src="${e(src)}" type="video/mp4">Your browser cannot play this video. <a href="${e(src)}">Open the MP4.</a></video><figcaption><span id="creator-drop-audio">Original music · sound on ♡</span><a href="${e(src)}" aria-label="Open Nikki is live? as an MP4 file">Open MP4 <span aria-hidden="true">↗</span></a></figcaption></figure>
+    <figure class="creator-drop-film"><div class="creator-drop-film-label"><span>${e(filmLabel)}</span><span>${e(durationLabel)}</span></div><video class="creator-drop-video" controls playsinline preload="none" width="1080" height="1350" poster="${e(poster)}" aria-labelledby="${e(titleId)}" aria-describedby="${e(statusId)} ${e(audioId)}"><source src="${e(src)}" type="video/mp4">Your browser cannot play this video. <a href="${e(src)}">Open the MP4.</a></video><figcaption><span id="${e(audioId)}">Original music · sound on ♡</span><a href="${e(src)}" aria-label="${e(`Open ${title} as an MP4 file`)}">Open MP4 <span aria-hidden="true">↗</span></a></figcaption></figure>
   </section>`;
 }
