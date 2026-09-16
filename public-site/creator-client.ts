@@ -1,3 +1,4 @@
+import { startCommunities } from "./communities-client";
 import { startExperience } from "./experience-client";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
@@ -158,7 +159,10 @@ async function refreshMe() {
       : "Connect wallet ↗";
   }
   if ($("#channel-form")) renderStudio();
-  await experience.accountChanged();
+  await Promise.all([
+    experience.accountChanged(),
+    communities.accountChanged(),
+  ]);
 }
 function walletDialog() {
   const dialog = $<HTMLDialogElement>("#wallet-dialog");
@@ -779,6 +783,12 @@ const experience = startExperience({
   toast,
   connect: walletDialog,
 });
+const communities = startCommunities({
+  request,
+  getMe: () => me,
+  connect: walletDialog,
+  toast,
+});
 motion();
 addEventListener("pageshow", (event) => {
   if (event.persisted) void refreshMe().catch(() => {});
@@ -893,6 +903,7 @@ void (async () => {
       toast("X verification was cancelled. Your draft is still here.");
   } catch (err) {
     if ($("#channel-form")) renderStudio();
+    await communities.accountChanged();
     toast(
       err instanceof Error
         ? err.message

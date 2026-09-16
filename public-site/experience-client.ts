@@ -561,5 +561,20 @@ export function startExperience(ctx: Context) {
     ).slice(0, 24);
   if (params.get("topic") === "video" && $("#support-category"))
     $<HTMLSelectElement>("#support-category")!.value = "Video report";
+  if (params.get("topic") === "community" && $("#support-category")) {
+    $<HTMLSelectElement>("#support-category")!.value = "Community report";
+    const mint = params.get("community") || "",
+      post = params.get("post") || "";
+    if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint) && $("#support-message")) {
+      $<HTMLTextAreaElement>("#support-message")!.value =
+        "Community: " +
+        location.origin +
+        "/communities/" +
+        mint +
+        "/" +
+        (/^[1-9][0-9]{0,15}$/.test(post) ? "\nPost: " + post : "") +
+        "\n\nWhat happened: ";
+    }
+  }
   return { accountChanged };
 }

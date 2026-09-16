@@ -1,3 +1,4 @@
+import { communitiesApi } from "./communities";
 import { releaseApi, transactionsPaused } from "./release";
 import { storagePricing } from "./storage-pricing";
 import { mediaApi, cleanupMedia } from "./media";
@@ -82,7 +83,9 @@ async function api(req: Request, env: Env): Promise<Response> {
   if (req.method !== "GET" || route.startsWith("/auth"))
     await limit(env, "api", ip, 120);
   const extension =
-    (await mediaApi(req, env, route)) || (await releaseApi(req, env, route));
+    (await communitiesApi(req, env, route)) ||
+    (await mediaApi(req, env, route)) ||
+    (await releaseApi(req, env, route));
   if (extension) return extension;
   const authentication = await auth(req, env, route);
   if (authentication) return authentication;
@@ -543,6 +546,74 @@ export default {
         );
       }
     }
+    if (/^\/communities\/[1-9A-HJ-NP-Za-km-z]{32,44}\/?$/.test(url.pathname)) {
+      try {
+        limitRead(req.headers.get("cf-connecting-ip") || "local");
+        const mint = url.pathname.split("/")[2];
+        const community = env.CREATORS_DB
+          ? await env.CREATORS_DB.prepare(
+              "SELECT name,description FROM communities WHERE mint=?",
+            )
+              .bind(mint)
+              .first<{ name: string; description: string }>()
+          : null;
+        if (!community)
+          return new Response("Community not found.", {
+            status: 404,
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              "X-Content-Type-Options": "nosniff",
+            },
+          });
+        const asset = await env.ASSETS.fetch(
+          new Request(new URL("/communities/_community/", url), req),
+        );
+        const title = escape(community.name + " — Nikki"),
+          canonical = escape(origin(env) + "/communities/" + mint + "/");
+        const html = (await asset.text())
+          .replace(/<title>.*?<\/title>/, () => "<title>" + title + "</title>")
+          .replace(
+            /(<meta name="description" content=")[^"]*/,
+            (_all, prefix) => prefix + escape(community.description),
+          )
+          .replace(
+            /(<meta property="og:title" content=")[^"]*/,
+            (_all, prefix) => prefix + title,
+          )
+          .replace(
+            /(<meta property="og:description" content=")[^"]*/,
+            (_all, prefix) => prefix + escape(community.description),
+          )
+          .replace(
+            /(<(?:link rel="canonical" href|meta property="og:url" content)=")[^"]*/g,
+            (_all, prefix) => prefix + canonical,
+          );
+        const headers = new Headers(asset.headers);
+        for (const key of ["Content-Length", "ETag", "Last-Modified"])
+          headers.delete(key);
+        headers.set("Cache-Control", "no-store");
+        headers.set(
+          "Content-Security-Policy",
+          "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https:; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests",
+        );
+        headers.set("X-Content-Type-Options", "nosniff");
+        headers.set("Referrer-Policy", "no-referrer");
+        return new Response(html, { status: asset.status, headers });
+      } catch (error) {
+        return new Response(
+          error instanceof ApiError
+            ? error.message
+            : "This community is temporarily unavailable. Please try again.",
+          {
+            status: error instanceof ApiError ? error.status : 503,
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              "Cache-Control": "no-store",
+            },
+          },
+        );
+      }
+    }
     if (/^\/c\/[a-z0-9_]{3,24}\/?$/.test(url.pathname)) {
       try {
         limitRead(req.headers.get("cf-connecting-ip") || "local");
@@ -592,6 +663,16 @@ export default {
       headers.set("Cache-Control", "no-store");
       return new Response(html, { status: asset.status, headers });
     }
-    return env.ASSETS.fetch(req);
+    const asset = await env.ASSETS.fetch(req);
+    if (/^\/communities(?:\/|$)/.test(url.pathname)) {
+      const headers = new Headers(asset.headers);
+      headers.set(
+        "Content-Security-Policy",
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https:; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests",
+      );
+      headers.set("Referrer-Policy", "no-referrer");
+      return new Response(asset.body, { status: asset.status, headers });
+    }
+    return asset;
   },
 };

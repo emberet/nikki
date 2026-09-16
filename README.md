@@ -51,3 +51,7 @@ The 15-second founding film (2,644,637 bytes) passed real permanent-storage veri
 See [operations and deployment](docs/OPERATIONS.md) for hosting, configuration, recovery, dependency findings, and the remaining live acceptance checks. See [product decisions](docs/PRODUCT_BRIEF.md) for the agreed rules.
 
 The original HTML informed the visual direction only. Archival photographs on the About page are credited inspiration, not fake published videos.
+
+## Token communities
+
+Existing Solana tokens can import a community profile, logo, and links into Nikki. Community text posts are free and stored offchain, separately from permanent video records. See [Communities](docs/COMMUNITIES.md) for access rules, supported imports, and deployment.

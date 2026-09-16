@@ -1298,3 +1298,34 @@ html[data-motion="off"] .watch-shortcuts a {
   flex-shrink: 0;
   background: #7026e7;
 }
+
+/* Leave room for Communities in the shared desktop navigation. */
+@media (min-width: 761px) and (max-width: 1200px) {
+  .nav > .motion-toggle {
+    display: none;
+  }
+}
+@media (min-width: 761px) and (max-width: 960px) {
+  .nav .brand-caption {
+    display: none;
+  }
+  .nav {
+    gap: 14px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+@media (max-width: 760px) {
+  .mobile-tabs a[href="/communities/"] span {
+    font-size: 0.6875rem;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+}
+
+@media (max-width: 360px) {
+  .mobile-tabs a[href="/communities/"] span {
+    font-size: 0.65625rem;
+  }
+}

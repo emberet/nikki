@@ -187,6 +187,7 @@ export async function releaseApi(
         "Impersonation",
         "Misleading token claims",
         "Video report",
+        "Community report",
         "Other",
       ].includes(category)
     )
