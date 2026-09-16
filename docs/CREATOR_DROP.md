@@ -22,7 +22,7 @@ Run `npm run preview:drop`, then serve `dist-drop-preview/` on localhost. It con
 
 ## Resume when storage funding is ready
 
-1. Configure a separate operational storage signer outside the repository, with its path in `STORAGE_KEYPAIR_PATH`. This was not configured when the package was prepared. The founder’s signing wallet and the operational storage signer have different roles; do not put a founder or treasury private key into the repository.
+1. A separate operational storage signer is now configured locally via `STORAGE_KEYPAIR_PATH`, outside the repository with owner-only file permissions. Its public credit destination and payment preparation are saved in `releases/creator-drop/storage-payment.json`. Keep a secure backup of the signer file. The founder’s signing wallet and the operational storage signer have different roles; do not put a founder or treasury private key into the repository.
 2. Fund that operational signer’s **Turbo storage-credit balance** for the video and signed metadata. A SOL wallet balance alone is not the prepaid credit balance checked by Nikki. The existing founder flow uses project-prepaid storage and does not request a creator-to-Nikki SOL transfer. Check the provider’s current cost when paying; no price is locked by this draft.
 3. Follow `OPERATIONS.md` to enable permanent publishing and start the private Node studio and preservation worker locally. Public uploads and NIKKI voting remain closed.
 4. Sign in with the configured founder wallet in the private studio. Upload the staged MP4 using the exact title and metadata in `record.json`. Review playback and context, then sign the separate publication confirmation in the wallet. Do not change the caption or file after signing.
@@ -30,7 +30,7 @@ Run `npm run preview:drop`, then serve `dist-drop-preview/` on localhost. It con
 6. Run `npm run build:public`. Check that `archive.json` contains the verified founding record, the homepage Creator drop shows **Nikki is live?**, and its video plays from Arweave. Review desktop and mobile.
 7. Deploy only `dist-public/` to the `nikki-run` Pages project when publication is authorized. The private preview, source masters, keys, and database stay local.
 
-The remaining release steps require the storage signer, funded provider credits, the founder’s wallet signature, and successful permanent-storage verification. The website integration is prepared in advance; those real transactions have not been exercised by this preparation.
+The remaining release steps require funded provider credits, the founder’s wallet signature, and successful permanent-storage verification. The storage signer and website integration are prepared; no payment or upload has been sent. Permanent publishing remains disabled until the payment is verified and publication is ready.
 
 ## Preparation checks
 
