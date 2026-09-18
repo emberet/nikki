@@ -14,6 +14,9 @@ export function helpPage() {
 export function libraryPage() {
   return `<section class="creator-heading"><div><span class="eyebrow accent">GOOD THINGS ARE WORTH COMING BACK TO</span><h1>Your library<span class="accent">.</span></h1><p>Saved videos and where you left off, linked to your signed-in wallet.</p></div><button class="btn" data-refresh-library>Refresh ↻</button></section><div id="library-results" data-private aria-live="polite"><div class="empty-state"><h2>Keep a place for the good stuff.</h2><p>Sign in to save videos and continue watching across devices.</p><button class="btn btn-primary" data-connect>Connect wallet ↗</button></div></div>`;
 }
+export function moderatorsPage() {
+  return `<section class="creator-heading"><div><span class="eyebrow accent">COMMUNITY STEWARDS</span><h1>Eligible moderators<span class="accent">.</span></h1><p>Wallets holding at least 1% of the $NIKKI supply hold moderation power. The list follows live holdings and each moderator’s current channel.</p></div><button class="btn" data-refresh-moderators>Refresh ↻</button></section><div id="moderators-results" aria-live="polite"><div class="loading">Checking current $NIKKI holdings…</div></div><p class="field-help">Holdings are read from Solana mainnet and refreshed every few minutes. Channel details update as creators update their channels.</p>`;
+}
 export function opsPage() {
   return `<section class="creator-heading"><div><span class="eyebrow accent">FOUNDER DESK</span><h1>Keep Nikki running<span class="accent">.</span></h1><p>Channels, communities, posts, support, and service checks.</p></div><button class="btn" data-refresh-ops>Refresh ↻</button></section><div id="ops-results" data-private aria-live="polite"><div class="notice">Sign in with the founder wallet to open operations.</div></div>`;
 }

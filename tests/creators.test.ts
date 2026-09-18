@@ -1070,3 +1070,62 @@ test("founder admin lists and moderates channels, communities, and posts", async
   assert.equal(overview.counts.hiddenCommunities, 1);
   assert.equal(overview.counts.users, 2);
 });
+
+test("moderators lists wallets holding at least 1% of NIKKI with live channel details", async () => {
+  const f = fixture(),
+    creator = await f.login(),
+    small = Keypair.generate().publicKey.toBase58();
+  f.sql
+    .prepare(
+      "UPDATE creator_users SET x_id='77',x_username='stewardess' WHERE wallet=?",
+    )
+    .run(creator.address);
+  assert.equal(
+    (await f.call("/profile", { ...profile, published: true }, creator.cookie))
+      .status,
+    200,
+  );
+  assert.equal(
+    ((await (await f.call("/moderators")).json()) as any).enabled,
+    false,
+  );
+  const mint = Keypair.generate().publicKey.toBase58();
+  f.env.NIKKI_MINT = mint;
+  const account = (owner: string, amount: string) => ({
+    account: { data: { parsed: { info: { owner, tokenAmount: { amount } } } } },
+  });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: any, init: any) => {
+    const body = JSON.parse(init.body);
+    return Response.json({
+      jsonrpc: "2.0",
+      id: 1,
+      result:
+        body.method === "getTokenSupply"
+          ? { value: { amount: "1000" } }
+          : [
+              account(creator.address, "30"),
+              account(creator.address, "20"),
+              account(small, "5"),
+            ],
+    });
+  }) as typeof fetch;
+  try {
+    const first: any = await (await f.call("/moderators")).json();
+    assert.equal(first.enabled, true);
+    assert.equal(first.moderators.length, 1);
+    assert.equal(first.moderators[0].wallet, creator.address);
+    assert.equal(first.moderators[0].percent, 5);
+    assert.equal(first.moderators[0].handle, "historian");
+    assert.equal(first.moderators[0].xUsername, "stewardess");
+    f.sql
+      .prepare(
+        "UPDATE creator_profiles SET display_name='New History' WHERE wallet=?",
+      )
+      .run(creator.address);
+    const second: any = await (await f.call("/moderators")).json();
+    assert.equal(second.moderators[0].displayName, "New History");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

@@ -1,4 +1,5 @@
 import { contentMediaApi, cleanupContentMedia } from "./content-media";
+import { moderatorsApi } from "./moderators";
 import { channelPostsApi } from "./channel-posts";
 import { communitiesApi } from "./communities";
 import { releaseApi, transactionsPaused } from "./release";
@@ -85,6 +86,7 @@ async function api(req: Request, env: Env): Promise<Response> {
   if (req.method !== "GET" || route.startsWith("/auth"))
     await limit(env, "api", ip, 120);
   const extension =
+    (await moderatorsApi(req, env, route)) ||
     (await contentMediaApi(req, env, route)) ||
     (await channelPostsApi(req, env, route)) ||
     (await communitiesApi(req, env, route)) ||

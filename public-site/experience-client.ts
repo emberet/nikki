@@ -305,6 +305,31 @@ export function startExperience(ctx: Context) {
     if (opsTab === "support") return opsSupport(box);
     return opsOverview(box);
   }
+  async function moderators() {
+    const box = $("#moderators-results");
+    if (!box) return;
+    const version = epoch,
+      r = await ctx.request("/moderators");
+    if (!same(version)) return;
+    if (!r.enabled) {
+      box.innerHTML = empty(
+        "Almost ready.",
+        "Moderator eligibility is being configured. Check back soon.",
+      );
+      return;
+    }
+    box.innerHTML = r.moderators.length
+      ? r.moderators
+          .map(
+            (m: any) =>
+              `<article class="ticket"><span class="badge">${e(m.percent)}% OF SUPPLY</span><h3>${m.displayName ? e(m.displayName) : "Unclaimed channel"}</h3><p class="field-help">${m.handle ? `<a class="text-link" href="/c/${e(m.handle)}/">@${e(m.handle)}</a>` : "No published channel yet"}${m.xUsername ? ` · <a class="text-link" href="https://x.com/${e(m.xUsername)}" target="_blank" rel="noreferrer">𝕏 @${e(m.xUsername)}</a>` : ""}</p><p class="mono break-word">${e(m.wallet)}</p></article>`,
+          )
+          .join("")
+      : empty(
+          "No wallet qualifies yet.",
+          "A wallet appears here once it holds at least 1% of the $NIKKI supply.",
+        );
+  }
   async function ops() {
     const box = $("#ops-results");
     if (!box) return;
@@ -435,6 +460,14 @@ export function startExperience(ctx: Context) {
       support(),
       library(),
       ops(),
+      moderators().catch(() => {
+        const box = $("#moderators-results");
+        if (box)
+          box.innerHTML = empty(
+            "Holdings check unavailable.",
+            "The moderator list could not be loaded. Try Refresh in a moment.",
+          );
+      }),
       document.documentElement.dataset.studioTab === "activity"
         ? activity()
         : Promise.resolve(),
@@ -457,6 +490,8 @@ export function startExperience(ctx: Context) {
       void safeTask(library, b as HTMLButtonElement);
     if (b.hasAttribute("data-refresh-ops"))
       void safeTask(ops, b as HTMLButtonElement);
+    if (b.hasAttribute("data-refresh-moderators"))
+      void safeTask(moderators, b as HTMLButtonElement);
     if (b.dataset.opsTab) {
       opsTab = b.dataset.opsTab;
       void safeTask(ops);

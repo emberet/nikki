@@ -17,6 +17,8 @@ export interface Env {
   X_CLIENT_SECRET?: string;
   TOKEN_LAUNCH_ENABLED?: string;
   FOUNDER_WALLET?: string;
+  NIKKI_MINT?: string;
+  TREASURY_WALLET_HASH?: string;
   CREATOR_MEDIA?: {
     put(
       key: string,
