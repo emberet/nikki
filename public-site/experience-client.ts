@@ -187,6 +187,124 @@ export function startExperience(ctx: Context) {
           "Save a preserved video to find it here. The founder’s first video is coming soon.",
         ) + '<a class="btn" href="/#archive">Explore the archive ↗</a>';
   }
+  let opsTab = "overview";
+  const opsLists: Record<
+    string,
+    { rows: any[]; offset: number | null; q: string }
+  > = {
+    channels: { rows: [], offset: 0, q: "" },
+    communities: { rows: [], offset: 0, q: "" },
+    posts: { rows: [], offset: 0, q: "" },
+  };
+  function opsSearch(tab: string, placeholder: string) {
+    return `<form class="ops-search" data-ops-search="${tab}"><label class="sr-only" for="ops-search-${tab}">Search</label><input id="ops-search-${tab}" name="q" type="search" maxlength="100" placeholder="${placeholder}" value="${e(opsLists[tab]!.q)}"><button class="btn btn-small" type="submit">Search</button></form>`;
+  }
+  function opsMore(tab: string) {
+    return opsLists[tab]!.offset !== null
+      ? `<button class="btn" data-ops-more="${tab}">Load more ↓</button>`
+      : "";
+  }
+  async function opsOverview(box: HTMLElement) {
+    const version = epoch,
+      r = await ctx.request("/ops/overview");
+    if (!same(version)) return;
+    opsPaused = r.paused;
+    box.innerHTML = `<div class="ops-counts">${[
+      ["Published channels", r.counts.channels],
+      ["Creator accounts", r.counts.users],
+      ["Verified creator tokens", r.counts.tokens],
+      ["Open requests", r.counts.openTickets],
+      ["Pending over 10 min", r.counts.pendingTransactions],
+      ["Hidden communities", r.counts.hiddenCommunities],
+      ["Hidden posts", r.counts.hiddenPosts],
+    ]
+      .map(
+        ([label, n]) =>
+          `<div class="card"><strong>${e(n)}</strong><span>${e(label)}</span></div>`,
+      )
+      .join(
+        "",
+      )}</div><section class="card section-space"><div class="section-heading"><h2>Service controls</h2><span class="badge">${r.paused ? "TRANSACTIONS PAUSED" : "TRANSACTIONS OPEN"}</span></div><p>Pause new token transactions during an incident. Existing transaction status checks and video playback stay available.</p><div class="btn-row"><button class="btn" data-ops-toggle>${r.paused ? "Resume transactions" : "Pause new transactions"}</button><button class="btn" data-ops-health>Check connections ↻</button></div><p id="ops-health" role="status"></p><p class="field-help">Channel artwork: ${(Number(r.counts.imageBytes) / 1048576).toFixed(2)} / 64 MB application limit. ${r.imageStorageEnabled ? "Image storage connected." : "Image storage setup pending."}</p><div class="btn-row"><a class="text-link" href="https://dash.cloudflare.com/" target="_blank" rel="noreferrer">Cloudflare usage ↗</a><a class="text-link" href="https://dashboard.helius.dev/" target="_blank" rel="noreferrer">RPC usage ↗</a></div><p class="field-help">Provider dashboards show billable usage. These counts do not estimate charges.</p></section><section class="section-space"><h2>Recent transactions</h2>${r.transactions.map((t: any) => receipt(t, true)).join("") || empty("No transactions yet.", "Launch and fee collection records will appear here.")}</section><details class="section-space"><summary>Recent founder actions</summary>${r.audit.map((a: any) => `<p>${e(date(a.created_at))} · ${e(a.action)} · <span class="mono">${e(a.target.slice(0, 12))}</span></p>`).join("") || "<p>No operations recorded yet.</p>"}</details>`;
+  }
+  async function opsSupport(box: HTMLElement) {
+    const version = epoch,
+      r = await ctx.request("/ops/overview");
+    if (!same(version)) return;
+    box.innerHTML = `<section><h2>Support queue</h2>${r.tickets.length ? r.tickets.map((t: any) => `<form class="ticket" data-ops-ticket="${e(t.id)}"><span class="badge">${e(t.status)}</span><h3>${e(t.category)}${t.target_handle ? " · @" + e(t.target_handle) : ""}</h3><p class="field-help">${e(date(t.created_at))} · ${e(t.wallet)}</p><p class="description">${e(t.message)}</p><label>Reply to this wallet<textarea name="reply" required maxlength="1500" rows="3">${e(t.reply)}</textarea></label><label>Status<select name="status">${["open", "reviewing", "resolved"].map((v) => `<option ${v === t.status ? "selected" : ""}>${v}</option>`).join("")}</select></label><button class="btn" type="submit">Save reply</button></form>`).join("") : empty("No requests waiting.", "New support requests will appear here.")}</section>`;
+  }
+  async function opsChannels(box: HTMLElement, more = false) {
+    const list = opsLists.channels!,
+      version = epoch,
+      r = await ctx.request(
+        "/ops/channels?q=" +
+          encodeURIComponent(list.q) +
+          "&offset=" +
+          (more ? list.offset || 0 : 0),
+      );
+    if (!same(version)) return;
+    list.rows = more ? [...list.rows, ...r.channels] : r.channels;
+    list.offset = r.nextOffset;
+    box.innerHTML = `${opsSearch("channels", "Handle, name, X, or wallet")}${
+      list.rows.length
+        ? list.rows
+            .map(
+              (c: any) =>
+                `<article class="ticket"><span class="badge">${c.published ? "PUBLISHED" : "UNPUBLISHED"}</span><h3>@${e(c.handle)} · ${e(c.display_name)}</h3><p class="field-help">${e(date(c.created_at))}${c.x_username ? " · 𝕏 @" + e(c.x_username) : ""}${c.token_status ? " · token verified" : ""}${c.moderated_by ? " · moderated " + e(date(c.moderated_at)) : ""}</p><p class="mono break-word">${e(c.wallet)}</p><div class="btn-row">${c.published ? `<a class="btn btn-small" href="/c/${e(c.handle)}/" target="_blank" rel="noreferrer">View ↗</a>` : ""}<button class="btn btn-small ${c.published ? "btn-danger" : ""}" data-ops-channel="${e(c.wallet)}" data-publish="${c.published ? "0" : "1"}">${c.published ? "Unpublish channel" : "Restore channel"}</button></div></article>`,
+            )
+            .join("") + opsMore("channels")
+        : empty("No channels found.", "Try another search.")
+    }`;
+  }
+  async function opsCommunities(box: HTMLElement, more = false) {
+    const list = opsLists.communities!,
+      version = epoch,
+      r = await ctx.request(
+        "/ops/communities?q=" +
+          encodeURIComponent(list.q) +
+          "&offset=" +
+          (more ? list.offset || 0 : 0),
+      );
+    if (!same(version)) return;
+    list.rows = more ? [...list.rows, ...r.communities] : r.communities;
+    list.offset = r.nextOffset;
+    box.innerHTML = `${opsSearch("communities", "Name, symbol, mint, or organizer wallet")}${
+      list.rows.length
+        ? list.rows
+            .map(
+              (c: any) =>
+                `<article class="ticket"><span class="badge">${c.state === "visible" ? "VISIBLE" : "HIDDEN"}</span><h3>${e(c.name)} · $${e(c.token_symbol)}</h3><p class="field-help">${e(date(c.created_at))} · ${e(c.member_count)} members · ${e(c.post_count)} posts${c.owner_x_username ? " · 𝕏 @" + e(c.owner_x_username) : ""}${c.moderated_by ? " · moderated " + e(date(c.moderated_at)) : ""}</p><p class="mono break-word">${e(c.mint)}</p><div class="btn-row"><a class="btn btn-small" href="/communities/${e(c.mint)}/" target="_blank" rel="noreferrer">View ↗</a><button class="btn btn-small ${c.state === "visible" ? "btn-danger" : ""}" data-ops-community="${e(c.mint)}" data-state="${c.state === "visible" ? "hidden" : "visible"}">${c.state === "visible" ? "Hide community" : "Restore community"}</button></div></article>`,
+            )
+            .join("") + opsMore("communities")
+        : empty("No communities found.", "Try another search.")
+    }`;
+  }
+  async function opsPosts(box: HTMLElement, more = false) {
+    const list = opsLists.posts!,
+      version = epoch,
+      r = await ctx.request(
+        "/ops/posts?offset=" + (more ? list.offset || 0 : 0),
+      );
+    if (!same(version)) return;
+    list.rows = more ? [...list.rows, ...r.posts] : r.posts;
+    list.offset = r.nextOffset;
+    box.innerHTML = list.rows.length
+      ? list.rows
+          .map(
+            (p: any) =>
+              `<article class="ticket"><span class="badge">${e(p.state)}</span><h3>${p.kind === "channel" ? "Channel post" : "Community post"} · ${e(p.target || p.ref || "")}</h3><p class="field-help">${e(date(p.created_at))} · ${e(p.wallet)}${p.x_username ? " · 𝕏 @" + e(p.x_username) : ""}</p><p class="description">${e(String(p.text).slice(0, 280))}</p>${p.state === "visible" && p.ref ? `<div class="btn-row"><button class="btn btn-small btn-danger" data-ops-post-kind="${e(p.kind)}" data-ops-post-ref="${e(p.ref)}" data-ops-post-id="${e(p.id)}">Hide post</button></div>` : ""}</article>`,
+          )
+          .join("") + opsMore("posts")
+      : empty("No posts yet.", "Channel and community posts will appear here.");
+  }
+  async function opsPanel(more = false) {
+    const box = $("#ops-panel");
+    if (!box) return;
+    if (opsTab === "channels") return opsChannels(box, more);
+    if (opsTab === "communities") return opsCommunities(box, more);
+    if (opsTab === "posts") return opsPosts(box, more);
+    if (opsTab === "support") return opsSupport(box);
+    return opsOverview(box);
+  }
   async function ops() {
     const box = $("#ops-results");
     if (!box) return;
@@ -197,23 +315,19 @@ export function startExperience(ctx: Context) {
       );
       return;
     }
-    const version = epoch,
-      r = await ctx.request("/ops/overview");
-    if (!same(version)) return;
-    opsPaused = r.paused;
-    box.innerHTML = `<div class="ops-counts">${[
-      ["Published channels", r.counts.channels],
-      ["Verified creator tokens", r.counts.tokens],
-      ["Open requests", r.counts.openTickets],
-      ["Pending over 10 min", r.counts.pendingTransactions],
+    box.innerHTML = `<div class="filters ops-tabs" role="group" aria-label="Admin sections">${[
+      ["overview", "Overview"],
+      ["channels", "Channels"],
+      ["communities", "Communities"],
+      ["posts", "Posts"],
+      ["support", "Support"],
     ]
       .map(
-        ([label, n]) =>
-          `<div class="card"><strong>${e(n)}</strong><span>${e(label)}</span></div>`,
+        ([id, label]) =>
+          `<button class="filter ${opsTab === id ? "active" : ""}" aria-pressed="${opsTab === id}" data-ops-tab="${id}">${label}</button>`,
       )
-      .join(
-        "",
-      )}</div><section class="card section-space"><div class="section-heading"><h2>Service controls</h2><span class="badge">${r.paused ? "TRANSACTIONS PAUSED" : "TRANSACTIONS OPEN"}</span></div><p>Pause new token transactions during an incident. Existing transaction status checks and video playback stay available.</p><div class="btn-row"><button class="btn" data-ops-toggle>${r.paused ? "Resume transactions" : "Pause new transactions"}</button><button class="btn" data-ops-health>Check connections ↻</button></div><p id="ops-health" role="status"></p><p class="field-help">Channel artwork: ${(Number(r.counts.imageBytes) / 1048576).toFixed(2)} / 64 MB application limit. ${r.imageStorageEnabled ? "Image storage connected." : "Image storage setup pending."}</p><div class="btn-row"><a class="text-link" href="https://dash.cloudflare.com/" target="_blank" rel="noreferrer">Cloudflare usage ↗</a><a class="text-link" href="https://dashboard.helius.dev/" target="_blank" rel="noreferrer">RPC usage ↗</a></div><p class="field-help">Provider dashboards show billable usage. These counts do not estimate charges.</p></section><section class="section-space"><h2>Support queue</h2>${r.tickets.length ? r.tickets.map((t: any) => `<form class="ticket" data-ops-ticket="${e(t.id)}"><span class="badge">${e(t.status)}</span><h3>${e(t.category)}${t.target_handle ? " · @" + e(t.target_handle) : ""}</h3><p class="field-help">${e(date(t.created_at))} · ${e(t.wallet)}</p><p class="description">${e(t.message)}</p><label>Reply to this wallet<textarea name="reply" required maxlength="1500" rows="3">${e(t.reply)}</textarea></label><label>Status<select name="status">${["open", "reviewing", "resolved"].map((v) => `<option ${v === t.status ? "selected" : ""}>${v}</option>`).join("")}</select></label><button class="btn" type="submit">Save reply</button></form>`).join("") : empty("No requests waiting.", "New support requests will appear here.")}</section><section class="section-space"><h2>Recent transactions</h2>${r.transactions.map((t: any) => receipt(t, true)).join("") || empty("No transactions yet.", "Launch and fee collection records will appear here.")}</section><details class="section-space"><summary>Recent founder actions</summary>${r.audit.map((a: any) => `<p>${e(date(a.created_at))} · ${e(a.action)} · <span class="mono">${e(a.target.slice(0, 12))}</span></p>`).join("") || "<p>No operations recorded yet.</p>"}</details>`;
+      .join("")}</div><div id="ops-panel" aria-live="polite"></div>`;
+    await opsPanel();
   }
   async function resize(file: File, kind: string) {
     if (
@@ -343,6 +457,70 @@ export function startExperience(ctx: Context) {
       void safeTask(library, b as HTMLButtonElement);
     if (b.hasAttribute("data-refresh-ops"))
       void safeTask(ops, b as HTMLButtonElement);
+    if (b.dataset.opsTab) {
+      opsTab = b.dataset.opsTab;
+      void safeTask(ops);
+    }
+    if (b.dataset.opsMore)
+      void safeTask(() => opsPanel(true), b as HTMLButtonElement);
+    if (b.dataset.opsChannel)
+      void safeTask(async () => {
+        const publish = b.dataset.publish === "1";
+        if (
+          !publish &&
+          !confirm(
+            "Unpublish this channel? It disappears from the public site until restored.",
+          )
+        )
+          return;
+        const version = epoch;
+        await ctx.request("/ops/channel", {
+          wallet: b.dataset.opsChannel,
+          published: publish,
+        });
+        if (!same(version)) return;
+        ctx.toast(publish ? "Channel restored." : "Channel unpublished.");
+        await opsPanel();
+      }, b as HTMLButtonElement);
+    if (b.dataset.opsCommunity)
+      void safeTask(async () => {
+        const state = b.dataset.state === "visible" ? "visible" : "hidden";
+        if (
+          state === "hidden" &&
+          !confirm(
+            "Hide this community? Its page and posts become unreachable until restored.",
+          )
+        )
+          return;
+        const version = epoch;
+        await ctx.request("/ops/community", {
+          mint: b.dataset.opsCommunity,
+          state,
+        });
+        if (!same(version)) return;
+        ctx.toast(
+          state === "hidden" ? "Community hidden." : "Community restored.",
+        );
+        await opsPanel();
+      }, b as HTMLButtonElement);
+    if (b.dataset.opsPostId)
+      void safeTask(async () => {
+        if (!confirm("Hide this post? The author cannot restore it.")) return;
+        const version = epoch;
+        await ctx.request(
+          (b.dataset.opsPostKind === "channel"
+            ? "/channels/"
+            : "/communities/") +
+            b.dataset.opsPostRef +
+            "/posts/" +
+            b.dataset.opsPostId +
+            "/delete",
+          {},
+        );
+        if (!same(version)) return;
+        ctx.toast("Post hidden.");
+        await opsPanel();
+      }, b as HTMLButtonElement);
     if (b.dataset.historyCheck || b.dataset.opsReconcile)
       void safeTask(async () => {
         const version = epoch;
@@ -454,6 +632,15 @@ export function startExperience(ctx: Context) {
   });
   document.addEventListener("submit", (event) => {
     const form = event.target as HTMLFormElement;
+    if (form.dataset.opsSearch) {
+      event.preventDefault();
+      const list = opsLists[form.dataset.opsSearch];
+      if (list) {
+        list.q = String(new FormData(form).get("q") || "").slice(0, 100);
+        void safeTask(() => opsPanel());
+      }
+      return;
+    }
     if (form.id !== "support-form" && !form.dataset.opsTicket) return;
     event.preventDefault();
     void safeTask(async () => {

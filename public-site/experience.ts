@@ -15,7 +15,7 @@ export function libraryPage() {
   return `<section class="creator-heading"><div><span class="eyebrow accent">GOOD THINGS ARE WORTH COMING BACK TO</span><h1>Your library<span class="accent">.</span></h1><p>Saved videos and where you left off, linked to your signed-in wallet.</p></div><button class="btn" data-refresh-library>Refresh ↻</button></section><div id="library-results" data-private aria-live="polite"><div class="empty-state"><h2>Keep a place for the good stuff.</h2><p>Sign in to save videos and continue watching across devices.</p><button class="btn btn-primary" data-connect>Connect wallet ↗</button></div></div>`;
 }
 export function opsPage() {
-  return `<section class="creator-heading"><div><span class="eyebrow accent">FOUNDER DESK</span><h1>Keep Nikki running<span class="accent">.</span></h1><p>Support, transaction recovery, and service checks.</p></div><button class="btn" data-refresh-ops>Refresh ↻</button></section><div id="ops-results" data-private aria-live="polite"><div class="notice">Sign in with the founder wallet to open operations.</div></div>`;
+  return `<section class="creator-heading"><div><span class="eyebrow accent">FOUNDER DESK</span><h1>Keep Nikki running<span class="accent">.</span></h1><p>Channels, communities, posts, support, and service checks.</p></div><button class="btn" data-refresh-ops>Refresh ↻</button></section><div id="ops-results" data-private aria-live="polite"><div class="notice">Sign in with the founder wallet to open operations.</div></div>`;
 }
 export function shareButtons(url: string) {
   return `<div class="btn-row"><button class="btn" data-share-url="${url}">${icon("share")} Share</button><button class="btn" data-copy="${url}">Copy link</button></div>`;

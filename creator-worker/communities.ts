@@ -30,6 +30,7 @@ interface CommunityRow {
   mint: string;
   owner_wallet: string;
   owner_x_username: string | null;
+  state: string;
   name: string;
   description: string;
   logo_url: string;
@@ -91,6 +92,7 @@ function community(row: CommunityRow) {
     updatedAt: row.updated_at,
     memberCount: row.member_count,
     postCount: row.post_count,
+    state: row.state,
   };
 }
 function canModerate(env: Env, user: CreatorUser | null, row: CommunityRow) {
@@ -235,7 +237,7 @@ export async function communitiesApi(
     const offset = Number(offsetRaw);
     // Literal substring search: '%' and '_' do not become SQL wildcards.
     const where =
-      " WHERE (?='' OR instr(lower(c.name),lower(?))>0 OR instr(lower(c.token_name),lower(?))>0 OR instr(lower(c.token_symbol),lower(?))>0 OR c.mint=?)";
+      " WHERE c.state='visible' AND (?='' OR instr(lower(c.name),lower(?))>0 OR instr(lower(c.token_name),lower(?))>0 OR instr(lower(c.token_symbol),lower(?))>0 OR c.mint=?)";
     const [rows, count] = await Promise.all([
       env.CREATORS_DB.prepare(
         communitySelect + where + " ORDER BY c.id ASC LIMIT 25 OFFSET ?",
@@ -408,6 +410,9 @@ export async function communitiesApi(
   const mint = wallet(parts[1]),
     row = await findCommunity(env, mint),
     moderator = canModerate(env, user, row);
+  // A hidden community stays reachable for its organizer and the founder only.
+  if (row.state !== "visible" && !moderator)
+    throw new ApiError(404, "This community hasn't arrived yet.");
   if (parts.length === 2 && req.method === "GET") {
     const joined = user
       ? !!(await env.CREATORS_DB.prepare(
