@@ -2,10 +2,11 @@ import { rateLimit } from "@/lib/rate-limit";
 import { randomBytes } from "crypto";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
-import { api, appOrigin, json } from "@/lib/http";
+import { api, appOrigin, clientIp, json } from "@/lib/http";
 export const dynamic = "force-dynamic";
 export const GET = api(async (req) => {
-  await rateLimit("auth-challenge", "global", 180);
+  await rateLimit("auth-challenge", clientIp(req), 30);
+  await rateLimit("auth-challenge", "global", 600);
   const session = await getSession();
   if (session.challengeId)
     await db.authChallenge.deleteMany({ where: { id: session.challengeId } });

@@ -602,7 +602,7 @@ export default {
         headers.set("Cache-Control", "no-store");
         headers.set(
           "Content-Security-Policy",
-          "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: blob:; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests",
+          "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: blob:; font-src 'self'; connect-src 'self'; frame-src https://connect.solflare.com https://solflare.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests",
         );
         headers.set("X-Content-Type-Options", "nosniff");
         headers.set("Referrer-Policy", "no-referrer");
@@ -676,7 +676,7 @@ export default {
       const headers = new Headers(asset.headers);
       headers.set(
         "Content-Security-Policy",
-        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: blob:; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests",
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: blob:; font-src 'self'; connect-src 'self'; frame-src https://connect.solflare.com https://solflare.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests",
       );
       headers.set("Referrer-Policy", "no-referrer");
       return new Response(asset.body, { status: asset.status, headers });

@@ -47,11 +47,22 @@ export function useAuth() {
   return useContext(Context);
 }
 export default function SignInButton({ onAuthed }: { onAuthed?: () => void }) {
-  const { publicKey, signMessage, connected, disconnect } = useWallet(),
+  const { publicKey, signMessage, connected, connecting, wallet, disconnect } =
+      useWallet(),
     { setVisible } = useWalletModal(),
     { me, refresh } = useAuth(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  useEffect(() => {
+    const adapter = wallet?.adapter;
+    if (!adapter) return;
+    const onError = (e: Error) =>
+      setError(e.message || "The wallet connection failed. Please try again.");
+    adapter.on("error", onError);
+    return () => {
+      adapter.off("error", onError);
+    };
+  }, [wallet]);
   const signIn = async () => {
     if (!publicKey || !signMessage) return;
     setBusy(true);
@@ -105,9 +116,13 @@ export default function SignInButton({ onAuthed }: { onAuthed?: () => void }) {
       ) : !connected ? (
         <button
           className="btn btn-primary btn-small"
-          onClick={() => setVisible(true)}
+          onClick={() => {
+            setError("");
+            setVisible(true);
+          }}
+          disabled={connecting}
         >
-          Connect wallet ↗
+          {connecting ? "Connecting…" : "Connect wallet ↗"}
         </button>
       ) : (
         <button

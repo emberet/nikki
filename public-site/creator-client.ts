@@ -218,7 +218,23 @@ async function connect(choice: string) {
     return;
   }
   try {
-    await adapter.connect();
+    // The Solflare web flow can stall without ever settling (for example when
+    // its connect iframe is blocked); surface that instead of waiting forever.
+    let timer: ReturnType<typeof setTimeout>;
+    await Promise.race([
+      adapter.connect(),
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              Error(
+                `${adapter!.name} did not respond. Close this dialog and try again, or install the ${adapter!.name} extension.`,
+              ),
+            ),
+          45000,
+        );
+      }),
+    ]).finally(() => clearTimeout(timer));
     if (!adapter.publicKey) throw Error("Wallet connection was not completed.");
     const address = adapter.publicKey.toBase58();
     message.textContent =
