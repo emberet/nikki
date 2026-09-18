@@ -946,3 +946,127 @@ test("public cache keys discard tracking parameters and keep search and paginati
   assert.notEqual(key("?q=history"), key("?q=knowledge"));
   assert.notEqual(key("?offset=0"), key("?offset=25"));
 });
+
+test("founder admin lists and moderates channels, communities, and posts", async () => {
+  const f = fixture(),
+    creator = await f.login(),
+    owner = await f.login();
+  f.env.FOUNDER_WALLET = owner.address;
+  f.sql
+    .prepare(
+      "UPDATE creator_users SET x_id='42',x_username='historyfan' WHERE wallet=?",
+    )
+    .run(creator.address);
+  assert.equal(
+    (await f.call("/profile", { ...profile, published: true }, creator.cookie))
+      .status,
+    200,
+  );
+  const mint = Keypair.generate().publicKey.toBase58();
+  f.sql
+    .prepare(
+      "INSERT INTO communities(mint,owner_wallet,name,accent,token_name,token_symbol,import_role,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+    )
+    .run(
+      mint,
+      creator.address,
+      "Friends",
+      "purple",
+      "Nikki",
+      "NIKKI",
+      "community-led",
+      1,
+      1,
+    );
+  f.sql
+    .prepare(
+      "INSERT INTO community_posts(mint,wallet,client_id,text,state,created_at) VALUES(?,?,?,?,?,?)",
+    )
+    .run(mint, creator.address, "c1", "community hello", "visible", 2);
+  f.sql
+    .prepare(
+      "INSERT INTO channel_posts(channel_wallet,wallet,client_id,text,state,created_at) VALUES(?,?,?,?,?,?)",
+    )
+    .run(creator.address, creator.address, "p1", "channel hello", "visible", 3);
+  for (const denied of [
+    await f.call("/ops/channels?q=", undefined, creator.cookie),
+    await f.call(
+      "/ops/channel",
+      { wallet: creator.address, published: false },
+      creator.cookie,
+    ),
+    await f.call("/ops/communities?q=", undefined, creator.cookie),
+    await f.call("/ops/community", { mint, state: "hidden" }, creator.cookie),
+    await f.call("/ops/posts", undefined, creator.cookie),
+  ])
+    assert.equal(denied.status, 403);
+  const channels: any = await (
+    await f.call("/ops/channels?q=historian", undefined, owner.cookie)
+  ).json();
+  assert.equal(channels.channels.length, 1);
+  assert.equal(channels.channels[0].published, 1);
+  assert.equal(
+    (
+      await f.call(
+        "/ops/channel",
+        { wallet: creator.address, published: false },
+        owner.cookie,
+      )
+    ).status,
+    200,
+  );
+  const hiddenChannel: any = await (
+    await f.call("/channels?q=historian")
+  ).json();
+  assert.equal(hiddenChannel.channels.length, 0);
+  assert.equal(
+    (
+      await f.call(
+        "/ops/channel",
+        { wallet: creator.address, published: true },
+        owner.cookie,
+      )
+    ).status,
+    200,
+  );
+  const communities: any = await (
+    await f.call("/ops/communities?q=friends", undefined, owner.cookie)
+  ).json();
+  assert.equal(communities.communities.length, 1);
+  assert.equal(communities.communities[0].state, "visible");
+  assert.equal(
+    (await f.call("/ops/community", { mint, state: "hidden" }, owner.cookie))
+      .status,
+    200,
+  );
+  const publicCommunities: any = await (await f.call("/communities")).json();
+  assert.equal(publicCommunities.communities.length, 0);
+  assert.equal(
+    (await f.call("/communities/" + mint, undefined, creator.cookie)).status,
+    200,
+  );
+  assert.equal((await f.call("/communities/" + mint)).status, 404);
+  assert.equal(
+    (await f.call("/communities/" + mint, undefined, owner.cookie)).status,
+    200,
+  );
+  const posts: any = await (
+    await f.call("/ops/posts", undefined, owner.cookie)
+  ).json();
+  assert.equal(posts.posts.length, 2);
+  assert.equal(posts.posts[0].kind, "channel");
+  assert.equal(posts.posts[0].ref, "historian");
+  assert.equal(posts.posts[1].kind, "community");
+  assert.equal(posts.posts[1].ref, mint);
+  const audit = f.sql
+    .prepare("SELECT action FROM creator_ops_audit ORDER BY created_at")
+    .all()
+    .map((row: any) => row.action);
+  assert.ok(audit.includes("channel-publish"));
+  assert.ok(audit.includes("community-state"));
+  const overview: any = await (
+    await f.call("/ops/overview", undefined, owner.cookie)
+  ).json();
+  assert.equal(overview.counts.hiddenCommunities, 1);
+  assert.equal(overview.counts.users, 2);
+});

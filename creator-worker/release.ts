@@ -8,6 +8,7 @@ import {
   random,
   text,
   origin,
+  wallet,
 } from "./common";
 import { checkMainnet, confirmIntent, connection } from "./chain";
 import type { Env } from "./types";
@@ -45,7 +46,7 @@ export async function releaseApi(
     if (route === "/ops/overview" && req.method === "GET") {
       const [counts, tickets, transactions, audit, paused] = await Promise.all([
         env.CREATORS_DB.prepare(
-          `SELECT (SELECT count(*) FROM creator_profiles WHERE published=1) AS channels,(SELECT count(*) FROM creator_tokens WHERE status='verified') AS tokens,(SELECT count(*) FROM creator_tickets WHERE status!='resolved') AS openTickets,(SELECT count(*) FROM creator_intents WHERE status IN ('prepared','submitted') AND created_at<?) AS pendingTransactions,(SELECT coalesce(sum(bytes),0) FROM creator_assets) AS imageBytes`,
+          `SELECT (SELECT count(*) FROM creator_profiles WHERE published=1) AS channels,(SELECT count(*) FROM creator_tokens WHERE status='verified') AS tokens,(SELECT count(*) FROM creator_tickets WHERE status!='resolved') AS openTickets,(SELECT count(*) FROM creator_intents WHERE status IN ('prepared','submitted') AND created_at<?) AS pendingTransactions,(SELECT coalesce(sum(bytes),0) FROM creator_assets) AS imageBytes,(SELECT count(*) FROM creator_users) AS users,(SELECT count(*) FROM communities WHERE state='hidden') AS hiddenCommunities,(SELECT (SELECT count(*) FROM channel_posts WHERE state='hidden')+(SELECT count(*) FROM community_posts WHERE state='hidden')) AS hiddenPosts`,
         )
           .bind(now() - 600)
           .first(),
@@ -133,6 +134,117 @@ export async function releaseApi(
         ),
       ]);
       return json({ saved: true });
+    }
+    if (route === "/ops/channels" && req.method === "GET") {
+      const url = new URL(req.url),
+        q = text(url.searchParams.get("q") || "", 0, 100, "Search"),
+        offsetRaw = url.searchParams.get("offset") || "0";
+      if (!/^\d{1,6}$/.test(offsetRaw))
+        throw new ApiError(400, "Choose a valid page.");
+      const offset = Number(offsetRaw);
+      const rows = await env.CREATORS_DB.prepare(
+        `SELECT p.wallet,p.handle,p.display_name,p.category,p.published,p.moderated_at,p.moderated_by,p.created_at,u.x_username,t.status AS token_status,t.mint
+         FROM creator_profiles p JOIN creator_users u ON u.wallet=p.wallet
+         LEFT JOIN creator_tokens t ON t.wallet=p.wallet AND t.status='verified'
+         WHERE (?='' OR instr(lower(p.handle),lower(?))>0 OR instr(lower(p.display_name),lower(?))>0 OR instr(lower(coalesce(u.x_username,'')),lower(?))>0 OR p.wallet=?)
+         ORDER BY p.created_at DESC,p.wallet LIMIT 26 OFFSET ?`,
+      )
+        .bind(q, q, q, q, q, offset)
+        .all();
+      return json({
+        channels: rows.results.slice(0, 25),
+        nextOffset: rows.results.length > 25 ? offset + 25 : null,
+      });
+    }
+    if (route === "/ops/channel" && req.method === "POST") {
+      const data = await body(req),
+        target = wallet(data.wallet);
+      if (typeof data.published !== "boolean")
+        throw new ApiError(400, "Choose publish or unpublish.");
+      const result = await env.CREATORS_DB.prepare(
+        "UPDATE creator_profiles SET published=?,moderated_at=?,moderated_by=? WHERE wallet=?",
+      )
+        .bind(data.published ? 1 : 0, now(), address, target)
+        .run();
+      if (!result.meta.changes) throw new ApiError(404, "Channel not found.");
+      await env.CREATORS_DB.prepare(
+        "INSERT INTO creator_ops_audit VALUES(?,?,?,?,?,?)",
+      )
+        .bind(
+          random(),
+          address,
+          "channel-publish",
+          target,
+          data.published ? "published" : "unpublished",
+          now(),
+        )
+        .run();
+      return json({ published: data.published });
+    }
+    if (route === "/ops/communities" && req.method === "GET") {
+      const url = new URL(req.url),
+        q = text(url.searchParams.get("q") || "", 0, 100, "Search"),
+        offsetRaw = url.searchParams.get("offset") || "0";
+      if (!/^\d{1,6}$/.test(offsetRaw))
+        throw new ApiError(400, "Choose a valid page.");
+      const offset = Number(offsetRaw);
+      const rows = await env.CREATORS_DB.prepare(
+        `SELECT c.mint,c.name,c.token_symbol,c.owner_wallet,c.state,c.moderated_at,c.moderated_by,c.created_at,u.x_username AS owner_x_username,
+         (SELECT count(*) FROM community_members m WHERE m.mint=c.mint) AS member_count,
+         (SELECT count(*) FROM community_posts p WHERE p.mint=c.mint AND p.state='visible') AS post_count
+         FROM communities c JOIN creator_users u ON u.wallet=c.owner_wallet
+         WHERE (?='' OR instr(lower(c.name),lower(?))>0 OR instr(lower(c.token_symbol),lower(?))>0 OR c.mint=? OR c.owner_wallet=?)
+         ORDER BY c.created_at DESC,c.mint LIMIT 26 OFFSET ?`,
+      )
+        .bind(q, q, q, q, q, offset)
+        .all();
+      return json({
+        communities: rows.results.slice(0, 25),
+        nextOffset: rows.results.length > 25 ? offset + 25 : null,
+      });
+    }
+    if (route === "/ops/community" && req.method === "POST") {
+      const data = await body(req),
+        target = wallet(data.mint),
+        state = text(data.state, 1, 20, "State");
+      if (!["visible", "hidden"].includes(state))
+        throw new ApiError(400, "Choose visible or hidden.");
+      const result = await env.CREATORS_DB.prepare(
+        "UPDATE communities SET state=?,moderated_at=?,moderated_by=? WHERE mint=?",
+      )
+        .bind(state, now(), address, target)
+        .run();
+      if (!result.meta.changes) throw new ApiError(404, "Community not found.");
+      await env.CREATORS_DB.prepare(
+        "INSERT INTO creator_ops_audit VALUES(?,?,?,?,?,?)",
+      )
+        .bind(random(), address, "community-state", target, state, now())
+        .run();
+      return json({ state });
+    }
+    if (route === "/ops/posts" && req.method === "GET") {
+      const url = new URL(req.url),
+        offsetRaw = url.searchParams.get("offset") || "0";
+      if (!/^\d{1,6}$/.test(offsetRaw))
+        throw new ApiError(400, "Choose a valid page.");
+      const offset = Number(offsetRaw);
+      const rows = await env.CREATORS_DB.prepare(
+        `SELECT * FROM (
+           SELECT 'channel' AS kind,p.id,p.wallet,p.text,p.state,p.created_at,cp.handle AS ref,cp.display_name AS target,u.x_username
+           FROM channel_posts p JOIN creator_users u ON u.wallet=p.wallet
+           LEFT JOIN creator_profiles cp ON cp.wallet=p.channel_wallet
+           UNION ALL
+           SELECT 'community' AS kind,p.id,p.wallet,p.text,p.state,p.created_at,p.mint AS ref,c.name AS target,u.x_username
+           FROM community_posts p JOIN creator_users u ON u.wallet=p.wallet
+           LEFT JOIN communities c ON c.mint=p.mint
+         ) ORDER BY created_at DESC,id DESC LIMIT 26 OFFSET ?`,
+      )
+        .bind(offset)
+        .all();
+      return json({
+        posts: rows.results.slice(0, 25),
+        nextOffset: rows.results.length > 25 ? offset + 25 : null,
+      });
     }
     if (route === "/ops/reconcile" && req.method === "POST") {
       const data = await body(req),

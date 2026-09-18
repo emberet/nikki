@@ -993,6 +993,18 @@ summary {
   font-size: 0.875rem;
   color: var(--muted);
 }
+.ops-tabs {
+  margin-bottom: 24px;
+}
+.ops-search {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.ops-search input {
+  flex: 1;
+  min-width: 0;
+}
 #ops-results > .card {
   padding: 28px;
 }
