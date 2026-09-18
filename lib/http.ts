@@ -15,9 +15,34 @@ export function appOrigin(req?: Request) {
     throw new HttpError(503, "The application origin has not been configured.");
   return req ? new URL(req.url).origin : "http://127.0.0.1:4900";
 }
+function isLoopbackHost(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
 export function sameOrigin(req: Request) {
-  if (req.headers.get("origin") !== appOrigin(req))
-    throw new HttpError(403, "This request must come from Nikki.");
+  const origin = req.headers.get("origin"),
+    expected = appOrigin(req);
+  if (origin === expected) return;
+  // In development, localhost and 127.0.0.1 are the same machine; requiring
+  // an exact APP_URL match there turns a browsed-to-localhost tab into a 403.
+  if (process.env.NODE_ENV !== "production" && origin) {
+    try {
+      const got = new URL(origin),
+        want = new URL(expected);
+      if (
+        got.protocol === want.protocol &&
+        got.port === want.port &&
+        isLoopbackHost(got.hostname) &&
+        isLoopbackHost(want.hostname)
+      )
+        return;
+    } catch {}
+  }
+  throw new HttpError(403, "This request must come from Nikki.");
+}
+export function clientIp(req: Request) {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0]!.trim();
+  return req.headers.get("x-real-ip") || "unknown";
 }
 export async function jsonBody(req: Request) {
   if (!req.headers.get("content-type")?.includes("application/json"))

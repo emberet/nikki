@@ -1,6 +1,7 @@
 import { getIronSession, IronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { db } from "./db";
+import { HttpError } from "./http";
 export type SessionData = {
   wallet?: string;
   userId?: string;
@@ -12,7 +13,11 @@ export type SessionData = {
 };
 export async function getSession(): Promise<IronSession<SessionData>> {
   const secret = process.env.SESSION_SECRET;
-  if (!secret || secret.length < 32) throw new Error("SESSION_SECRET missing");
+  if (!secret || secret.length < 32)
+    throw new HttpError(
+      503,
+      "Sign-in is unavailable: the server session secret is not configured.",
+    );
   return getIronSession<SessionData>(await cookies(), {
     cookieName: "nikki_session",
     password: secret,

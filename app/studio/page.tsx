@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { Buffer } from "buffer";
 import bs58 from "bs58";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import {
