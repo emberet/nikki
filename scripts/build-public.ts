@@ -395,7 +395,7 @@ async function main() {
   );
   await write(
     "_headers",
-    `/*\n${privatePreview ? "  X-Robots-Tag: noindex, nofollow\n" : ""}  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; media-src ${privatePreview ? "'self' " : ""}https://arweave.net https://*.arweave.net; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()\n  Cache-Control: public, max-age=0, must-revalidate\n/fonts/*\n  Cache-Control: public, max-age=86400\n/images/*\n  Cache-Control: public, max-age=86400\n`,
+    `/*\n${privatePreview ? "  X-Robots-Tag: noindex, nofollow\n" : ""}  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; media-src ${privatePreview ? "'self' " : ""}https://arweave.net https://*.arweave.net; connect-src 'self'; frame-src https://connect.solflare.com https://solflare.com; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; upgrade-insecure-requests\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()\n  Cache-Control: public, max-age=0, must-revalidate\n/fonts/*\n  Cache-Control: public, max-age=86400\n/images/*\n  Cache-Control: public, max-age=86400\n`,
   );
 
   console.log(
