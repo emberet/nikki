@@ -355,30 +355,43 @@ export function startExperience(ctx: Context) {
     await opsPanel();
   }
   async function resize(file: File, kind: string) {
-    if (
-      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-      file.size > 12 * 1024 * 1024
-    )
-      throw Error("Choose a JPEG, PNG, or WebP image under 12 MB.");
-    const bitmap = await createImageBitmap(file);
+    // Phone pickers report HEIC or an empty type; decoding below is the real
+    // gate, and <img> decoding also applies EXIF orientation, which
+    // createImageBitmap does not on every mobile browser.
+    if (file.type && !file.type.startsWith("image/"))
+      throw Error("Choose a photo or image file.");
+    if (!file.size || file.size > 20 * 1024 * 1024)
+      throw Error("Choose an image smaller than 20 MB.");
+    const url = URL.createObjectURL(file);
     try {
-      if (bitmap.width * bitmap.height > 40000000)
-        throw Error("Choose a smaller image (up to 40 megapixels).");
+      const image = new Image();
+      image.src = url;
+      try {
+        await image.decode();
+      } catch {
+        throw Error("That photo could not be opened. Try another image.");
+      }
+      if (
+        !image.naturalWidth ||
+        !image.naturalHeight ||
+        image.naturalWidth * image.naturalHeight > 60_000_000
+      )
+        throw Error("That image is too large. Try one with fewer pixels.");
       const canvas = document.createElement("canvas");
       canvas.width = kind === "avatar" ? 400 : 1200;
       canvas.height = 400;
       const context = canvas.getContext("2d");
       if (!context) throw Error("Your browser could not prepare this image.");
       const scale = Math.max(
-          canvas.width / bitmap.width,
-          canvas.height / bitmap.height,
+          canvas.width / image.naturalWidth,
+          canvas.height / image.naturalHeight,
         ),
         w = canvas.width / scale,
         h = canvas.height / scale;
       context.drawImage(
-        bitmap,
-        (bitmap.width - w) / 2,
-        (bitmap.height - h) / 2,
+        image,
+        (image.naturalWidth - w) / 2,
+        (image.naturalHeight - h) / 2,
         w,
         h,
         0,
@@ -397,7 +410,7 @@ export function startExperience(ctx: Context) {
         "This image is too detailed to upload. Choose a smaller photo.",
       );
     } finally {
-      bitmap.close();
+      URL.revokeObjectURL(url);
     }
   }
   async function accountChanged() {
@@ -474,6 +487,16 @@ export function startExperience(ctx: Context) {
     ]);
   }
   document.addEventListener("click", (event) => {
+    // A disabled file input inside the upload label swallows taps silently;
+    // say why the picker will not open instead of appearing broken.
+    const label = (event.target as HTMLElement).closest<HTMLElement>(
+      ".upload-label",
+    );
+    if (label?.querySelector<HTMLInputElement>("[data-art-upload]")?.disabled)
+      ctx.toast(
+        $("#artwork-note")?.textContent ||
+          "Save your channel and verify X to add photos.",
+      );
     const b = (event.target as HTMLElement).closest<HTMLElement>("button,a");
     if (!b) return;
     if (b.dataset.studioTab) {
@@ -723,8 +746,15 @@ export function startExperience(ctx: Context) {
           credentials: "same-origin",
           headers: { "Content-Type": "image/jpeg" },
           body: blob,
+          signal: AbortSignal.timeout(30000),
+        }).catch(() => {
+          throw Error(
+            "The upload did not finish. Check your connection and try again.",
+          );
         });
-        const r = await response.json();
+        const r = await response
+          .json()
+          .catch(() => ({ error: "Your image could not be uploaded." }));
         if (!same(version)) return;
         if (!response.ok)
           throw Error(r.error || "Your image could not be uploaded.");
