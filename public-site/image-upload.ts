@@ -17,8 +17,10 @@ export async function prepareImage(
   file: File,
   { kind }: { kind: ImageKind },
 ): Promise<Blob> {
-  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
-    throw Error("Choose a JPG, PNG, or WebP image.");
+  // Phone pickers report HEIC or an empty type; decoding below is the real
+  // gate, and the canvas re-encode always produces the JPEG the server needs.
+  if (file.type && !file.type.startsWith("image/"))
+    throw Error("Choose a photo or image file.");
   if (!file.size || file.size > 20 * 1024 * 1024)
     throw Error("Choose an image smaller than 20 MB.");
   const url = URL.createObjectURL(file);
