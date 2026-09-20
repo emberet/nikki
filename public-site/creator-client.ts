@@ -202,9 +202,19 @@ async function connect(choice: string) {
     choice === "solflare"
       ? new SolflareWalletAdapter()
       : new PhantomWalletAdapter();
-  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const mobile =
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
+  // Inside a wallet's in-app browser the injected provider can appear a
+  // moment after the tap; wait briefly so we don't bounce back to the
+  // deep link (or into the desktop iframe flow) while it is still loading.
+  if (mobile && adapter.readyState !== "Installed")
+    for (let waited = 0; waited < 2000; waited += 100) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      if ((adapter.readyState as string) === "Installed") break;
+    }
   if (mobile && adapter.readyState !== "Installed") {
-    const page = encodeURIComponent(location.origin + "/creator-studio/"),
+    const page = encodeURIComponent(location.origin + location.pathname),
       ref = encodeURIComponent(location.origin);
     const url =
       choice === "solflare"
@@ -228,10 +238,12 @@ async function connect(choice: string) {
           () =>
             reject(
               Error(
-                `${adapter!.name} did not respond. Close this dialog and try again, or install the ${adapter!.name} extension.`,
+                mobile
+                  ? `${adapter!.name} did not respond. Open Nikki inside the ${adapter!.name} app’s browser and try connecting again.`
+                  : `${adapter!.name} did not respond. Close this dialog and try again, or install the ${adapter!.name} extension.`,
               ),
             ),
-          45000,
+          mobile ? 20000 : 45000,
         );
       }),
     ]).finally(() => clearTimeout(timer));
