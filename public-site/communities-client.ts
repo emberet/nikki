@@ -1,3 +1,4 @@
+import { newClientId } from "./random-id";
 import {
   prepareImage,
   uploadImage,
@@ -728,7 +729,7 @@ export function startCommunities(ctx: Context) {
             )
               pendingPost = {
                 text,
-                clientId: crypto.randomUUID(),
+                clientId: newClientId(),
                 ...(imageId ? { imageId, imageAlt } : {}),
               };
             result = await ctx.request(endpoint() + "/posts", pendingPost);

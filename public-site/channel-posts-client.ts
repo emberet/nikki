@@ -1,4 +1,5 @@
 import { prepareImage, uploadImage } from "./image-upload";
+import { newClientId } from "./random-id";
 
 type Context = {
   request: (path: string, data?: unknown) => Promise<any>;
@@ -332,7 +333,7 @@ export function startChannelPosts(ctx: Context) {
         const imageId = attachment?.uploaded?.id || "";
         const key = JSON.stringify([value, imageId, imageAlt]);
         if (!pending || pending.key !== key)
-          pending = { key, clientId: crypto.randomUUID() };
+          pending = { key, clientId: newClientId() };
         await ctx.request(
           `/channels/${encodeURIComponent(targetHandle)}/posts`,
           {

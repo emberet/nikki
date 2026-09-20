@@ -746,7 +746,13 @@ export function startExperience(ctx: Context) {
           credentials: "same-origin",
           headers: { "Content-Type": "image/jpeg" },
           body: blob,
-          signal: AbortSignal.timeout(30000),
+          // AbortController instead of AbortSignal.timeout: the latter is
+          // missing in older mobile WebKit.
+          signal: (() => {
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 30000);
+            return controller.signal;
+          })(),
         }).catch(() => {
           throw Error(
             "The upload did not finish. Check your connection and try again.",
